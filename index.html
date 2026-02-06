@@ -1,0 +1,1929 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+  <title>阿墨小帳房</title>
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/6418/6418336.png">
+  <style>
+    /* CSS 變數由 Vue 動態控制 */
+    :root {
+      --primary: #7B6699;
+      --secondary: #F3F0F5;
+      --bg: #FDFDFF;
+      --text: #4A4A4A;
+      --highlight: #EAE3F2;
+      --border: #E0D8E8;
+      --income: #5D8C71;
+      --expense: #BA5C5C;
+    }
+
+    body,
+    input,
+    button,
+    select,
+    textarea {
+      font-family: 'Noto Serif TC', serif;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: 0.02em;
+    }
+
+    body {
+      background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+      color: var(--text);
+      margin: 0;
+      padding: 12px;
+      padding-bottom: 100px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1150px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    /* 卡片優化：極致毛玻璃 Glassmorphism */
+    .card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-top: 4px solid var(--primary);
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      animation: slideIn 0.5s ease-out;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* 預算油量表 */
+    .budget-box {
+      margin-top: 20px;
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: #E0E0E0;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.5s ease, background-color 0.5s;
+    }
+
+    .summary-grid {
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+      gap: 10px;
+    }
+
+    .stat-val {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-top: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .chart-scroll-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 10px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 260px;
+      min-width: 300px;
+    }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .search-input-wrap {
+      flex: 2 1 200px;
+      min-width: 0;
+    }
+
+    .select-input-wrap {
+      flex: 1 1 90px;
+      min-width: 0;
+    }
+
+    .control-btns {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 15px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      outline: none;
+      box-sizing: border-box;
+      background: #FAFAFA;
+      transition: 0.2s;
+      color: var(--text);
+      line-height: normal;
+      height: 42px;
+      /* 稍微縮小高度，讓排版更精緻 */
+    }
+
+    textarea {
+      height: auto;
+      /* 多行輸入框高度自定 */
+      min-height: 100px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--primary);
+      background: #FFF;
+      box-shadow: 0 0 0 3px var(--secondary);
+    }
+
+    .search-highlight {
+      background-color: var(--highlight);
+      color: var(--primary);
+      border-radius: 2px;
+      padding: 0 2px;
+      font-weight: bold;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #FFF;
+      color: var(--primary);
+      cursor: pointer;
+      transition: 0.3s;
+      font-size: 1rem;
+    }
+
+    .icon-btn:hover {
+      background: var(--secondary);
+      transform: translateY(-2px);
+    }
+
+    .icon-btn.active {
+      background: var(--primary);
+      color: #FFF;
+      border-color: var(--primary);
+    }
+
+    .icon-btn.clear {
+      color: #BBB;
+      border: none;
+      background: none;
+    }
+
+    .clear-select-btn {
+      position: absolute;
+      right: 30px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #CCC;
+      cursor: pointer;
+      z-index: 2;
+      transition: color 0.2s;
+    }
+
+    .clear-select-btn:hover {
+      color: var(--expense);
+    }
+
+    .desktop-table-box {
+      display: block;
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #FFF;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+      table-layout: fixed;
+    }
+
+    th {
+      background: var(--secondary);
+      color: var(--primary);
+      padding: 14px;
+      text-align: left;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+      cursor: pointer;
+    }
+
+    td {
+      padding: 14px;
+      border-bottom: 1px solid #F2F2F2;
+      font-size: 0.9rem;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .mobile-list-box {
+      display: none;
+    }
+
+    .mobile-item-card {
+      background: #FFF;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 15px;
+      border: 1px solid rgba(0, 0, 0, 0.04);
+      border-left: 4px solid var(--primary);
+      position: relative;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .mobile-item-card:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+    }
+
+    .archive-tag {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: #F0F0F0;
+      color: #999;
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 0 12px 0 10px;
+    }
+
+    @media screen and (max-width: 768px) {
+      .desktop-table-box {
+        display: none !important;
+      }
+
+      .mobile-list-box {
+        display: block !important;
+        margin-top: 10px;
+      }
+
+      .summary-grid {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        padding: 18px 12px !important;
+      }
+
+      .stat-val {
+        font-size: 1.1rem !important;
+      }
+
+      .filter-bar {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .search-input-wrap {
+        grid-column: span 2;
+      }
+
+      .select-input-wrap {
+        flex: none !important;
+        width: 100%;
+      }
+
+      .control-btns {
+        grid-column: span 1;
+        margin-top: 0;
+        justify-content: flex-end;
+        height: 40px;
+        /* 與 input 對齊 */
+      }
+
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        padding: 20px 16px;
+      }
+    }
+
+    .search-input-wrap {
+      flex: 2 1 200px;
+      min-width: 0;
+    }
+
+    .select-input-wrap {
+      flex: 1 1 90px;
+      min-width: 0;
+      position: relative;
+    }
+
+    .control-btns {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .cat-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.75rem;
+      background: var(--secondary);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+
+    .fab {
+      position: fixed;
+      bottom: 30px;
+      right: 25px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      z-index: 100;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .fab:active {
+      transform: scale(0.95);
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1500;
+      /* 低於 Modal 的 2000，避免擋住設定視窗 */
+      backdrop-filter: blur(2px);
+      pointer-events: none;
+      /* 允許穿透點擊，除非在特定操作中 */
+    }
+
+    .loading-overlay.blocking {
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.6);
+      z-index: 9999;
+    }
+
+    .loader-mini {
+      position: fixed;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: white;
+      padding: 6px 15px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translate(-50%, -20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+    }
+
+    /* 典雅色系選單 */
+    .theme-dropdown {
+      position: absolute;
+      top: 55px;
+      right: 20px;
+      background: white;
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border);
+      display: grid;
+      gap: 8px;
+      z-index: 200;
+      width: 140px;
+    }
+
+    .theme-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #555;
+      transition: 0.2s;
+    }
+
+    .theme-option:hover {
+      background: var(--secondary);
+      color: var(--primary);
+    }
+
+    .color-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 2px solid white;
+      box-shadow: 0 0 0 1px #ddd;
+    }
+
+    /* 🍞 Toast 通知 */
+    .toast-container {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      animation: toastIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.success {
+      background: rgba(67, 160, 71, 0.9);
+    }
+
+    .toast.error {
+      background: rgba(229, 57, 53, 0.9);
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.9);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /*  Modal 彈窗系統 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .modal-window {
+      background: white;
+      border-radius: 24px;
+      padding: 30px;
+      width: 90%;
+      max-width: 450px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      position: relative;
+      animation: scaleUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .close-btn {
+      font-size: 1.2rem;
+      color: #CCC;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .close-btn:hover {
+      color: var(--expense);
+    }
+
+    /* 管理中心強化樣式 */
+    .tabs-nav {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 25px;
+      border-bottom: 2px solid #eee;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 12px 0;
+      cursor: pointer;
+      font-size: 0.95rem;
+      color: #999;
+      border-bottom: 3px solid transparent;
+      transition: 0.2s;
+      flex: 1;
+      text-align: center;
+      font-weight: 500;
+      margin-bottom: -2px;
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      font-weight: bold;
+    }
+
+    .setting-section-title {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 20px 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .setting-section-title:first-child {
+      margin-top: 0;
+    }
+
+    .setting-card {
+      background: rgba(255, 255, 255, 0.5);
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+    }
+
+    .setting-group {
+      margin-bottom: 18px;
+    }
+
+    .setting-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .setting-label {
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 6px;
+      display: block;
+      font-weight: 600;
+    }
+
+    .collapse-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #666;
+      border-top: 1px solid #f0f0f0;
+      margin-top: 10px;
+    }
+
+    .recur-item-card {
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 15px;
+      position: relative;
+      transition: 0.3s;
+    }
+
+    .recur-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin-top: 10px;
+    }
+
+    @media screen and (max-width: 500px) {
+      .recur-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+    }
+
+    .recur-badge {
+      font-size: 0.7rem;
+      padding: 2px 10px;
+      border-radius: 6px;
+      background: var(--secondary);
+      color: var(--primary);
+      margin-right: 8px;
+      font-weight: bold;
+      white-space: nowrap;
+      display: inline-block;
+    }
+
+    .qr-reply-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .qr-reply-row input {
+      font-size: 0.8rem;
+      padding: 6px 10px;
+    }
+
+    .warning-text {
+      color: #d32f2f;
+      font-size: 0.7rem;
+      margin-top: 4px;
+      display: block;
+    }
+
+    /* 統一按鈕系統：紫色實心 vs 紫底紫框 */
+    .btn {
+      padding: 0 20px;
+      height: 42px;
+      /* 與輸入框高度同步 */
+      border-radius: 12px;
+      border: none !important;
+      outline: none !important;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.3s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--primary) !important;
+      color: white !important;
+      box-shadow: 0 4px 12px rgba(123, 102, 153, 0.25);
+      font-size: 0.95rem;
+    }
+
+    .btn.outline {
+      background: var(--secondary) !important;
+      border: 1.5px solid var(--primary) !important;
+      color: var(--primary) !important;
+      box-shadow: none;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1.5px);
+      box-shadow: 0 6px 20px rgba(123, 102, 153, 0.35);
+    }
+
+    .btn.outline:hover {
+      background: var(--highlight) !important;
+      box-shadow: 0 4px 12px rgba(123, 102, 153, 0.15);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes scaleUp {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* 🍃 空狀態 */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #AAA;
+    }
+
+    .empty-state i {
+      font-size: 3rem;
+      margin-bottom: 15px;
+      opacity: 0.5;
+      color: var(--primary);
+      display: block;
+    }
+
+    .empty-state p {
+      margin: 5px 0;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="container">
+    <!-- 僅在有資料且非背景載入時顯示微型讀取中 -->
+    <div v-if="isProcessing && activeData.length > 0 && !showModal && !showSettings" class="loader-mini">
+      <i class="fas fa-circle-notch fa-spin"></i> 同步中...
+    </div>
+
+    <!-- 全螢幕讀取：僅在重要操作 (Modal 開啟時) 才阻擋點擊 -->
+    <div v-if="isProcessing && showModal" class="loading-overlay" :class="{blocking: showModal}">
+      <i class="fas fa-feather-alt fa-spin fa-2x" style="color:var(--primary);"></i>
+    </div>
+
+    <!-- 一般載入中的羽毛 (初次載入時顯示，但不阻擋點擊) -->
+    <div v-if="isProcessing && activeData.length === 0" class="loading-overlay">
+      <i class="fas fa-feather-alt fa-spin fa-2x" style="color:var(--primary);"></i>
+    </div>
+
+    <div class="card"
+      style="display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; position: relative; z-index: 500;">
+      <h2 style="margin:0; color:var(--primary); font-size: 1.2rem; letter-spacing: 0.05em;">
+        <a :href="sheetUrl || '#'" target="_blank" style="color:inherit; text-decoration:none;">
+          <i class="fas fa-book-open" title="開啟後台試算表"></i>
+        </a>
+        {{ appTitle }}
+      </h2>
+      <div style="display:flex; gap:12px; position:relative; z-index:501;">
+        <button @click="showThemeMenu = !showThemeMenu" class="icon-btn" title="切換色系"><i
+            class="fas fa-palette"></i></button>
+        <button @click="showSettings = true" class="icon-btn" title="連線設定"><i class="fas fa-cog"></i></button>
+        <button @click="refreshActiveData" class="icon-btn" title="手動同步"><i class="fas fa-sync-alt"></i></button>
+      </div>
+
+      <div v-if="showThemeMenu" class="theme-dropdown" @mouseleave="showThemeMenu = false">
+        <div v-for="(t, key) in themes" :key="key" class="theme-option" @click="setTheme(key)">
+          <span class="color-dot" :style="{background: t.primary}"></span> {{ t.name }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card summary-grid">
+      <div class="stat-box">
+        <div style="color:#888; font-size:0.8rem; margin-bottom:4px;">收入</div>
+        <div class="stat-val" style="color:var(--income);">{{ formatMoney(totalIncome || 0) }}</div>
+      </div>
+      <div class="stat-box">
+        <div style="color:#888; font-size:0.8rem; margin-bottom:4px;">支出</div>
+        <div class="stat-val" style="color:var(--expense);">{{ formatMoney(totalExpense || 0) }}</div>
+      </div>
+      <div class="stat-box">
+        <div style="color:#888; font-size:0.8rem; margin-bottom:4px;">結餘</div>
+        <div class="stat-val" style="color:var(--primary);">{{ formatMoney(totalBalance || 0) }}</div>
+      </div>
+    </div>
+
+    <!-- 預算油量表 (若有設定才顯示) -->
+    <!-- 預算油量表 (精簡版) -->
+    <div class="card" v-if="monthlyBudget > 0" style="padding: 10px 24px; margin-bottom: 15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:#666;">
+        <div>
+          <span>💰 預算：{{ formatMoney(monthlyBudget) }}</span>
+          <i class="fas fa-pen" @click="openModal('budget')"
+            style="margin-left:5px; cursor:pointer; color:var(--primary);"></i>
+          <span style="color:#CCC; margin:0 5px;">|</span>
+          <span :style="{color: budgetColor}">剩餘：{{ formatMoney(monthlyBudget - currentMonthExpense) }}</span>
+        </div>
+        <div style="font-weight:bold; font-size:0.8rem;" :style="{color: budgetColor}">{{ Math.round(budgetPercent) }}%
+        </div>
+      </div>
+      <div class="progress-track" style="height:6px; margin-top:6px; background:#F0F0F0;">
+        <div class="progress-bar" :style="{width: Math.min(budgetPercent, 100) + '%', backgroundColor: budgetColor}">
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="card">
+        <h3 style="font-size:0.9rem; text-align:center; color:var(--primary); margin:0 0 15px 0;">類別分佈</h3>
+        <div class="chart-container"><canvas id="chartCat"></canvas></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:0.9rem; text-align:center; color:var(--primary); margin:0 0 15px 0;">收支趨勢</h3>
+        <div class="chart-scroll-wrapper">
+          <div class="chart-container" :style="{ minWidth: trendChartWidth }"><canvas id="chartTrend"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="filter-bar">
+        <div class="search-input-wrap"><input type="text" v-model="filter.q" placeholder="🔍 搜尋項目..."></div>
+        <div class="select-input-wrap" style="position:relative">
+          <select v-model="filter.month" style="padding-right: 40px">
+            <option value="">📅 月份</option>
+            <option value="custom">📅 自訂區間...</option>
+            <option v-for="m in availableMonths" :value="m">{{ m }}</option>
+            <option v-if="filter.customRange" :value="filter.customRange" disabled selected>{{ filter.customRangeText }}
+            </option>
+          </select>
+          <i v-if="filter.month" @click="filter.month=''" class="fas fa-times-circle clear-select-btn" title="清除月份"></i>
+        </div>
+        <div class="select-input-wrap" style="position:relative">
+          <select v-model="filter.cat" style="padding-right: 40px">
+            <option value="">🏷️ 類別</option>
+            <optgroup label="支出">
+              <option v-for="c in groupedCats.expense" :value="c">{{ c }}</option>
+            </optgroup>
+            <optgroup label="收入">
+              <option v-for="c in groupedCats.income" :value="c">{{ c }}</option>
+            </optgroup>
+          </select>
+          <i v-if="filter.cat" @click="filter.cat=''" class="fas fa-times-circle clear-select-btn" title="清除類別"></i>
+        </div>
+        <div class="select-input-wrap" style="position:relative">
+          <select v-model="filter.type" style="padding-right: 40px">
+            <option value="">🔄 全部</option>
+            <option value="支出">➖ 支出</option>
+            <option value="收入">➕ 收入</option>
+          </select>
+          <i v-if="filter.type" @click="filter.type=''" class="fas fa-times-circle clear-select-btn" title="清除篩選"></i>
+        </div>
+
+        <div class="control-btns">
+          <div @click="toggleArchive" class="icon-btn" :class="{active: useArchive}" title="歷史庫">
+            <i class="fas fa-history"></i>
+          </div>
+          <div @click="sortDesc = !sortDesc" class="icon-btn" :title="sortDesc ? '倒序' : '順序'">
+            <i :class="sortDesc ? 'fas fa-sort-amount-down' : 'fas fa-sort-amount-up-alt'"></i>
+          </div>
+          <div v-if="hasActiveFilter" @click="resetFilters" class="icon-btn clear" title="重設全部">
+            <i class="fas fa-times-circle fa-lg"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="desktop-table-box">
+        <div v-if="displayItems.length === 0" class="empty-state">
+          <i class="fas fa-wind"></i>
+          <p>這裡空空如也...</p>
+          <p style="font-size:0.8rem">試著記一筆，或清除篩選條件看看？</p>
+        </div>
+        <table v-else>
+          <thead>
+            <tr>
+              <th style="width:120px" @click="sortBy('date')">日期 <i :class="getSortIcon('date')"></i></th>
+              <th style="width:110px">類別</th>
+              <th>項目明細</th>
+              <th style="width:130px; text-align:right;" @click="sortBy('amount')">金額 <i
+                  :class="getSortIcon('amount')"></i></th>
+              <th style="width:100px; text-align:center;">操作</th>
+            </tr>
+          </thead>
+          <tbody v-if="isProcessing && filteredItems.length === 0">
+            <tr v-for="n in 5" :key="'skel-row-'+n">
+              <td>
+                <div class="skeleton skeleton-text" style="width:80%"></div>
+              </td>
+              <td>
+                <div class="skeleton skeleton-text" style="width:60%"></div>
+              </td>
+              <td>
+                <div class="skeleton skeleton-text" style="width:90%"></div>
+                <div class="skeleton skeleton-text" style="width:40%; height:0.7rem"></div>
+              </td>
+              <td>
+                <div class="skeleton skeleton-text" style="width:70%; margin-left:auto;"></div>
+              </td>
+              <td>
+                <div class="skeleton skeleton-circle" style="margin: 0 auto"></div>
+              </td>
+            </tr>
+          </tbody>
+          <tbody v-else>
+            <tr v-for="i in displayItems" :key="i.sheet+i.row">
+              <td style="color:#888;">{{ i.date }} <span v-if="i.sheet==='Archive'"
+                  style="font-size:0.6rem; color:#CCC;">[舊]</span></td>
+              <td>
+                <span class="cat-badge">
+                  <span style="font-size:0.9em; margin-right:4px;">{{ getIcon(i.category) }}</span>{{ i.category }}
+                </span>
+              </td>
+              <td>
+                <div v-html="highlight(i.item)" style="font-weight:600; color:#333;"></div>
+                <div v-html="highlight(i.note)" style="color:#999; font-size:0.8rem; margin-top:4px;"></div>
+              </td>
+              <td :style="{color: i.type==='收入'?'var(--income)':'var(--expense)', fontWeight:'600', textAlign:'right'}">
+                {{ formatMoney(i.amount) }}</td>
+              <td style="text-align:center;">
+                <button @click="openModal('edit', i)"
+                  style="color:#C4A484; border:none; background:none; cursor:pointer; padding:6px;"><i
+                    class="fas fa-edit"></i></button>
+                <button @click="deleteRow(i)"
+                  style="color:#D8A3A3; border:none; background:none; cursor:pointer; padding:6px; margin-left:6px;"><i
+                    class="fas fa-trash-alt"></i></button>
+              </td>
+            </tr>
+            <tr v-if="displayItems.length > 0" style="background:var(--secondary); font-weight:bold;">
+              <td colspan="3" style="text-align:right; font-size:0.85rem; color:#777;">當前顯示 ({{ displayItems.length }} /
+                {{ filteredItems.length }} 筆)</td>
+              <td style="text-align:right; color:var(--primary)">{{ formatMoney(totalBalance || 0) }}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mobile-list-box">
+        <div v-if="displayItems.length === 0" class="empty-state">
+          <i class="fas fa-wind"></i>
+          <p>一片寧靜...</p>
+          <p style="font-size:0.8rem">沒有符合的帳目</p>
+        </div>
+        <div v-else v-for="i in displayItems" :key="'mob-'+i.sheet+i.row" class="mobile-item-card">
+          <div v-if="i.sheet==='Archive'" class="archive-tag">歷史</div>
+          <div class="mobile-row-top" style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span style="color:#888; font-size:0.9rem;">{{ i.date }}</span>
+            <span>
+              <span class="cat-badge">
+                <span style="font-size:0.9em; margin-right:2px;">{{ getIcon(i.category) }}</span>{{ i.category }}
+              </span>
+            </span>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div v-html="highlight(i.item)" style="font-weight:600; font-size:1.05rem; color:#333;"></div>
+            <div v-html="highlight(i.note)" style="color:#999; font-size:0.85rem; margin-top:4px;"></div>
+          </div>
+          <div
+            style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #F5F5F5; padding-top:10px;">
+            <div :style="{color: i.type==='收入'?'var(--income)':'var(--expense)', fontWeight:'bold', fontSize:'1.1rem'}">
+              {{ i.type === '收入' ? '+' : '-' }}{{ formatMoney(i.amount) }}</div>
+            <div>
+              <button @click="openModal('edit', i)" style="color:#C4A484; border:none; background:none; padding:8px;"><i
+                  class="fas fa-edit"></i></button>
+              <button @click="deleteRow(i)" style="color:#D8A3A3; border:none; background:none; padding:8px;"><i
+                  class="fas fa-trash-alt"></i></button>
+            </div>
+          </div>
+        </div>
+        <div v-if="hasMoreItems" style="text-align:center; padding:20px; color:#999;">
+          <i class="fas fa-spinner fa-spin"></i> 載入更多...
+        </div>
+        <div class="subtotal-panel" v-if="displayItems.length > 0"
+          style="text-align:center; padding:10px; color:var(--primary); font-weight:bold; background:var(--secondary); border-radius:8px;">
+          小計：{{ formatMoney(totalBalance || 0) }}</div>
+      </div>
+    </div>
+
+    <div class="fab" @click="openModal('add')"><i class="fas fa-plus"></i></div>
+
+    <!-- 🖊️ 主編輯 Modal -->
+    <div class="modal-overlay" v-if="showModal" @click.self="showModal=false">
+      <div class="modal-window">
+        <div class="modal-header">
+          <div class="modal-title">{{ modalTitle }}</div>
+          <i class="fas fa-times close-btn" @click="showModal = false"></i>
+        </div>
+
+        <!-- 自訂區間模式 -->
+        <div v-if="modalMode==='range'">
+          <div style="margin-bottom: 12px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">開始日期</label>
+            <input type="date" v-model="rangeForm.start">
+          </div>
+          <div style="margin-bottom: 25px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">結束日期</label>
+            <input type="date" v-model="rangeForm.end">
+          </div>
+        </div>
+
+        <!-- 設定預算模式 -->
+        <div v-if="modalMode==='budget'">
+          <div style="margin-bottom: 25px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">每月預算金額</label>
+            <input type="number" v-model="form.amount" placeholder="輸入預算金額">
+          </div>
+        </div>
+
+        <!-- 既有的編輯模式 -->
+        <div v-else-if="modalMode==='add' || modalMode==='edit'">
+          <div style="display: flex; gap: 12px; margin-bottom: 15px;">
+            <div style="flex:1;"><label
+                style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">日期</label><input type="date"
+                v-model="form.date"></div>
+            <div style="flex:1;"><label
+                style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">收支</label><select
+                v-model="form.type">
+                <option>支出</option>
+                <option>收入</option>
+              </select></div>
+          </div>
+          <div style="margin-bottom: 12px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">類別</label>
+            <select v-model="form.category">
+              <option disabled value="">請選擇類別</option>
+              <option v-for="c in modalCatOptions" :value="c">{{ c }}</option>
+            </select>
+          </div>
+          <div style="margin-bottom: 12px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">項目</label><input type="text"
+              v-model="form.item" placeholder="如：午餐"></div>
+          <div style="margin-bottom: 12px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">金額</label><input type="number"
+              v-model="form.amount" placeholder="0"></div>
+          <div style="margin-bottom: 25px;"><label
+              style="font-size:0.8rem; color:#999; margin-bottom:4px; display:block;">備註</label><input type="text"
+              v-model="form.note" placeholder="備註事項..."></div>
+        </div>
+
+        <div style="text-align:center; display:flex; gap:12px; margin-top:20px;">
+          <button class="btn outline" style="flex:1;"
+            @click="showModal=false; if(modalMode==='range' && !filter.customRange) filter.month='';">取消</button>
+          <button class="btn" style="flex:2;" @click="submitForm">確認完成</button>
+        </div>
+      </div>
+    </div>
+    <!-- Toast 容器 (僅存放通知) -->
+    <div class="toast-container">
+      <div v-for="(t, idx) in toasts" :key="idx" class="toast" :class="t.type">
+        <i v-if="t.type==='success'" class="fas fa-check-circle"></i>
+        <i v-if="t.type==='error'" class="fas fa-exclamation-circle"></i>
+        {{ t.msg }}
+      </div>
+    </div>
+
+    <!-- 連線設定 Modal -->
+    <div class="modal-overlay" v-if="showSettings" @click.self="showSettings = false">
+      <div class="modal-window"
+        style="max-width: 680px; max-height: 90vh; display:flex; flex-direction:column; padding:30px; background: rgba(255,255,255,0.9); border:none;">
+        <div class="modal-header" style="margin-bottom:15px; flex-shrink:0;">
+          <div class="modal-title" style="font-size:1.3rem;"><i class="fas fa-sliders-h"></i> 系統管理中心</div>
+          <i class="fas fa-times close-btn" @click="showSettings = false" style="font-size:1.2rem;"></i>
+        </div>
+
+        <div class="tabs-nav">
+          <div class="tab-btn" :class="{active: settingsTab === 'general'}" @click="settingsTab='general'">基礎連線</div>
+          <div class="tab-btn" :class="{active: settingsTab === 'ai'}" @click="settingsTab='ai'">個人偏好</div>
+          <div class="tab-btn" :class="{active: settingsTab === 'recur'}" @click="settingsTab='recur'">週期收支</div>
+        </div>
+
+        <div style="flex:1; overflow-y:auto; padding-right:10px;" class="custom-scrollbar">
+          <!-- 基礎連線 Tab -->
+          <div v-if="settingsTab === 'general'">
+            <div class="setting-section-title"><i class="fas fa-link"></i> API 與連線設定</div>
+            <div class="setting-card">
+              <div class="setting-group">
+                <label class="setting-label">GAS Web App URL (關鍵)</label>
+                <input type="password" v-model="tempGasUrl" placeholder="請填入 .gs 部署後的網址" style="background:#fff;">
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <div class="setting-group">
+                  <label class="setting-label">Gemini API Key</label>
+                  <input type="password" v-model="fullConfig.GEMINI_API_KEY" placeholder="Gemini 金鑰">
+                </div>
+                <div class="setting-group">
+                  <label class="setting-label">LINE Push Token</label>
+                  <input type="password" v-model="fullConfig.LINE_ACCESS_TOKEN" placeholder="Line Access Token">
+                </div>
+              </div>
+              <button @click="initSystem" class="btn outline" style="width:100%; margin-top:10px;">
+                <i class="fas fa-magic"></i> 初始化工作表與提醒
+              </button>
+            </div>
+
+            <div class="setting-section-title"><i class="fas fa-share-alt"></i> 共享設定</div>
+            <div class="setting-card">
+              <p style="font-size:0.8rem; color:#666; margin-bottom:15px;">產生帶有目前連線資訊的加密連結，讓其他手機也能一掃即用。</p>
+              <div style="display:flex; gap:12px; align-items:flex-start;">
+                <div style="flex:1;">
+                  <button @click="generateShareLink" class="btn"
+                    style="width:100%; margin-bottom:12px; border-radius:12px;">
+                    <i class="fas fa-qrcode"></i> 產生分享連結與 QR Code
+                  </button>
+                  <div v-if="shareUrl" style="display:flex; gap:8px; animation: fadeIn 0.3s;">
+                    <input type="text" :value="shortUrl || shareUrl" readonly
+                      style="flex:1; background:#f9f9f9; font-size:0.8rem; border-radius:12px;">
+                    <button @click="copyToClipboard(shortUrl || shareUrl)" class="btn outline"
+                      style="padding:0 20px; flex-shrink:0; border-radius:12px;">複製連結</button>
+                  </div>
+                </div>
+                <div v-if="shareUrl" style="text-align:center; animation: fadeIn 0.3s;">
+                  <img :src="'https://quickchart.io/qr?text=' + encodeURIComponent(shareUrl)"
+                    style="width:92px; border:4px solid white; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+                </div>
+              </div>
+            </div>
+
+            <div class="collapse-header" @click="showAdvModel = !showAdvModel">
+              <span><i class="fas fa-cog"></i> 進階模型設定</span>
+              <i class="fas" :class="showAdvModel ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            </div>
+            <div v-if="showAdvModel" class="setting-card" style="margin-top:10px; padding:15px;">
+              <label class="setting-label">Gemini 模型 ID</label>
+              <input type="text" v-model="fullConfig.GEMINI_MODEL" placeholder="例如: gemini-2.0-flash"
+                style="border-radius:12px;">
+            </div>
+          </div>
+
+          <!-- 個人偏好 Tab -->
+          <div v-if="settingsTab === 'ai'">
+            <div class="setting-section-title"><i class="fas fa-user-edit"></i> 帳本外觀與預算</div>
+            <div class="setting-card">
+              <div style="display:grid; grid-template-columns: 2fr 1fr; gap:15px;">
+                <div class="setting-group">
+                  <label class="setting-label">帳本自訂標題</label>
+                  <input type="text" v-model="fullConfig.APP_TITLE" style="border-radius:12px;">
+                </div>
+                <div class="setting-group">
+                  <label class="setting-label">每月預算上限</label>
+                  <input type="number" v-model.number="fullConfig.MONTHLY_BUDGET" style="border-radius:12px;">
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-section-title"><i class="fas fa-robot"></i> AI 助理設定</div>
+            <div class="setting-card">
+              <div class="setting-group">
+                <label class="setting-label">AI 角色/語氣描述</label>
+                <textarea v-model="fullConfig.ROLE_SETTING" placeholder="例如：你是一位幽默但對金錢很精明的管家..."
+                  style="border-radius:12px; padding: 10px 15px;"></textarea>
+              </div>
+              <div class="setting-group">
+                <label class="setting-label">特殊記帳/日程規則</label>
+                <textarea v-model="fullConfig.SPECIAL_RULES" placeholder="規定 AI 遇到特定文字時的處理方式..."
+                  style="border-radius:12px; padding: 10px 15px;"></textarea>
+              </div>
+            </div>
+
+            <div class="setting-section-title"><i class="fas fa-list-ul"></i> LINE 快速回覆選單</div>
+            <div class="setting-card">
+              <div v-for="(qr, qidx) in quickReplyList" :key="qidx" class="qr-reply-row">
+                <input type="text" v-model="qr.label" placeholder="按鈕顯示" style="flex:1;">
+                <input type="text" v-model="qr.text" placeholder="傳送內容" style="flex:2;">
+                <i class="fas fa-times" @click="quickReplyList.splice(qidx,1)"
+                  style="color:#ccc; cursor:pointer; padding:5px;"></i>
+              </div>
+              <button @click="addQuickReply" class="btn outline" style="width:100%; margin-top:10px;">
+                <i class="fas fa-plus"></i> 新增快速回覆按鈕
+              </button>
+            </div>
+          </div>
+
+          <!-- 週期收支 Tab -->
+          <div v-if="settingsTab === 'recur'">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+              <div class="setting-section-title" style="margin:0;"><i class="fas fa-history"></i> 定期規則管理 ({{
+                recurData.length }})</div>
+              <button @click="addRecurItem" class="btn outline" style="padding:8px 20px; font-size:0.85rem;">
+                <i class="fas fa-plus"></i> 新增規則
+              </button>
+            </div>
+
+            <div v-for="(item, idx) in recurData" :key="idx" class="recur-item-card" :class="{disabled: !item.啟用}">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <div style="font-weight:bold; display:flex; align-items:center; flex:1;">
+                  <span class="recur-badge">{{ item.頻率 }}</span>
+                  <input type="text" v-model="item.項目"
+                    style="border:none; padding:4px 8px; font-weight:bold; background:none; width:100%;">
+                </div>
+                <div style="display:flex; gap:18px; align-items:center;">
+                  <i :class="item.啟用 ? 'fas fa-toggle-on' : 'fas fa-toggle-off'" @click="item.啟用 = !item.啟用"
+                    :title="item.啟用 ? '已啟用' : '已停用'"
+                    :style="{ color: item.啟用 ? 'var(--primary)' : '#ccc', fontSize: '1.6rem', cursor: 'pointer', transition: '0.2s' }"></i>
+                  <i class="fas fa-trash-alt" @click="removeRecurItem(qidx)"
+                    style="color:#ff6b6b; cursor:pointer; opacity:0.6; font-size:1.1rem;"></i>
+                </div>
+              </div>
+              <div class="recur-grid">
+                <div>
+                  <label class="setting-label">頻率</label>
+                  <select v-model="item.頻率" style="height:42px; padding: 0 15px; border-radius:12px;">
+                    <option value="每月">每月</option>
+                    <option value="每週">每週</option>
+                    <option value="每年">每年</option>
+                    <option value="每天">每天</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="setting-label">日期 / 週幾</label>
+                  <input type="text" v-model="item.日期" placeholder="例: 1 或 週一" style="border-radius:12px;">
+                </div>
+                <div>
+                  <label class="setting-label">金額</label>
+                  <input type="number" v-model.number="item.金額" style="border-radius:12px;">
+                </div>
+                <div>
+                  <label class="setting-label">類別</label>
+                  <input type="text" v-model="item.類別" placeholder="例: 餐飲" style="border-radius:12px;">
+                </div>
+              </div>
+              <div style="margin-top:15px;">
+                <label class="setting-label">備註說明</label>
+                <input type="text" v-model="item.備註" placeholder="輸入備註..." style="border-radius:12px;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style="flex-shrink:0; margin-top:25px; display:flex; justify-content:center; border-top:1px solid #f0f0f0; padding-top:25px;">
+          <button class="btn" style="width: 100%; max-width: 300px; font-size:1.1rem; font-weight:bold;"
+            @click="saveFullConfig">
+            <span v-if="isProcessing"><i class="fas fa-spinner fa-spin"></i> 儲存中...</span>
+            <span v-else>確認並同步雲端</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const DEFAULT_GAS_URL = "";
+
+    // 安全取得初始資料，避免在本地預覽時噴錯
+    const initialDataFromServer = typeof preloadedData !== 'undefined' ? preloadedData : [];
+    const initialBudget = typeof monthlyBudget !== 'undefined' ? monthlyBudget : 0;
+    const initialAppTitle = typeof appTitle !== 'undefined' ? appTitle : '阿墨小帳房';
+    document.title = initialAppTitle; // 初始化標題
+
+    new Vue({
+      el: '#app',
+      data: {
+        gasUrl: '', tempGasUrl: '', shareUrl: '', shortUrl: '', sheetUrl: '',
+        activeData: initialDataFromServer, archiveData: [], useArchive: false, isProcessing: false,
+        recurData: [], // 定期收支資料
+        monthlyBudget: initialBudget, appTitle: initialAppTitle,
+        filter: { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' },
+        sortKey: 'date', sortDesc: true,
+        showModal: false, modalMode: 'add', showThemeMenu: false, currentThemeKey: 'default',
+        showSettings: false, settingsTab: 'general',
+        showAdvModel: false, // 展開/收合模型設定
+        fullConfig: {},
+        quickReplyList: [], // LINE 快速回覆列表
+        configCats: null,
+        displayLimit: 30,
+        form: { date: '', type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' },
+        rangeForm: { start: '', end: '' },
+        charts: { cat: null, trend: null },
+        toasts: [],
+        iconCache: {}, // 新增：快取圖示以提升渲染速度
+
+        // 【典雅配色系統】
+        themes: {
+          default: {
+            name: '紫煙墨韻',
+            primary: '#7B6699', secondary: '#F3F0F5', highlight: '#EAE3F2', border: '#E0D8E8', income: '#5D8C71', expense: '#BA5C5C',
+            chartInc: '#A8D8B9', chartExp: '#E0A3AD'
+          },
+          forest: {
+            name: '竹林雅致',
+            primary: '#536D58', secondary: '#F1F5F2', highlight: '#DDE6DE', border: '#D3DBD4', income: '#4A7050', expense: '#B5655D',
+            chartInc: '#9EBC9F', chartExp: '#C79893'
+          },
+          ocean: {
+            name: '滄海月明',
+            primary: '#5C7A96', secondary: '#F0F4F8', highlight: '#DCE6F0', border: '#D1DEE8', income: '#4A80A8', expense: '#BD6B6B',
+            chartInc: '#99B9D6', chartExp: '#D6999E'
+          },
+          pink: {
+            name: '桃夭灼華',
+            primary: '#B57E8C', secondary: '#FAF2F4', highlight: '#F4DEE4', border: '#EBD4DB', income: '#6E9C91', expense: '#C95C72',
+            chartInc: '#93B5A9', chartExp: '#E6B8C2'
+          }
+        }
+      },
+      computed: {
+        modalTitle() {
+          if (this.modalMode === 'range') return '📅 設定查詢期間';
+          if (this.modalMode === 'budget') return '💰 設定每月預算';
+          return this.modalMode === 'add' ? '🖊️ 記一筆' : '📝 修改帳務';
+        },
+        // ...
+        // 計算 Modal 選單用的類別列表
+        modalCatOptions() {
+          if (!this.configCats) return [];
+          const raw = this.form.type === '收入' ? this.configCats.income : this.configCats.expense;
+          return raw ? raw.split(',').map(c => c.trim()) : [];
+        },
+        // ...
+        allData() { return Array.isArray(this.activeData) ? (this.useArchive ? [...this.activeData, ...this.archiveData] : this.activeData) : []; },
+        items() {
+          if (!Array.isArray(this.allData)) return [];
+          return this.allData.map(r => ({ date: r[0], type: r[1], category: r[2], item: r[3], amount: Number(String(r[4] || 0).replace(/,/g, '')), note: r[5], row: r[6], sheet: r[7] }));
+        },
+        availableMonths() { return [...new Set(this.items.map(i => i.date.slice(0, 7)))].sort().reverse(); },
+        availableCats() { return [...new Set(this.items.map(i => i.category))]; },
+        groupedCats() {
+          const used = { expense: new Set(), income: new Set() };
+          this.items.forEach(i => {
+            if (!i.category) return;
+            if (i.type === '收入') used.income.add(i.category);
+            else used.expense.add(i.category);
+          });
+
+          if (!this.configCats) return { expense: [...used.expense].sort(), income: [...used.income].sort() };
+
+          const sortFn = (set, configStr) => {
+            const list = configStr ? configStr.split(',').map(c => c.trim()) : [];
+            const sorted = [];
+            // 1. 優先加入設定檔中的類別 (依設定順序)
+            list.forEach(c => { if (set.has(c)) sorted.push(c); });
+            // 2. 加入設定檔沒有但帳本有的類別 (補在最後)
+            const remaining = [...set].filter(c => !sorted.includes(c)).sort();
+            return [...sorted, ...remaining];
+          };
+
+          return {
+            expense: sortFn(used.expense, this.configCats.expense),
+            income: sortFn(used.income, this.configCats.income)
+          };
+        },
+        hasActiveFilter() {
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          return this.filter.q !== '' || this.filter.cat !== '' || this.filter.type !== '' || this.filter.month !== currentMonth;
+        },
+        trendChartWidth() { const count = this.availableMonths.length; return count > 8 ? (count * 50) + 'px' : '100%'; },
+        filteredItems() {
+          let res = this.items.filter(i => {
+            const qMatch = (i.item + i.note).toLowerCase().includes(this.filter.q.toLowerCase());
+            let mMatch = true;
+            if (this.filter.customRange) {
+              mMatch = i.date >= this.filter.customRange.start && i.date <= this.filter.customRange.end;
+            } else if (this.filter.month) {
+              mMatch = i.date.startsWith(this.filter.month);
+            }
+            const cMatch = !this.filter.cat || i.category === this.filter.cat;
+            const tMatch = !this.filter.type || i.type === this.filter.type;
+            return qMatch && mMatch && cMatch && tMatch;
+          });
+          return res.sort((a, b) => {
+            let mod = this.sortDesc ? -1 : 1;
+            if (a[this.sortKey] !== b[this.sortKey]) return a[this.sortKey] > b[this.sortKey] ? mod : -mod;
+            return (a.row - b.row) * mod;
+          });
+        },
+        displayItems() { return this.filteredItems.slice(0, this.displayLimit); },
+        hasMoreItems() { return this.displayLimit < this.filteredItems.length; },
+        totalIncome() { return this.filteredItems.filter(i => i.type === '收入').reduce((a, b) => a + b.amount, 0); },
+        totalExpense() { return this.filteredItems.filter(i => i.type === '支出').reduce((a, b) => a + b.amount, 0); },
+        totalBalance() { return this.totalIncome - this.totalExpense; },
+
+        currentMonthExpense() {
+          const now = new Date();
+          const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+          return this.items
+            .filter(i => i.date.startsWith(currentMonth) && i.type === '支出')
+            .reduce((a, b) => a + b.amount, 0);
+        },
+        budgetPercent() { return this.monthlyBudget > 0 ? (this.currentMonthExpense / this.monthlyBudget) * 100 : 0; },
+        budgetColor() {
+          // 使用主題變數以搭配佈景
+          if (this.budgetPercent < 50) return 'var(--income)';
+          if (this.budgetPercent < 80) return '#E0BE89';
+          return 'var(--expense)';
+        }
+      },
+      watch: {
+        filter: {
+          deep: true, handler(n) {
+            if (n.month === 'custom') {
+              this.openModal('range');
+              return;
+            }
+            if (typeof n.month === 'string' && n.month !== 'custom' && this.filter.customRange) {
+              this.filter.customRange = null;
+              this.filter.customRangeText = '';
+            }
+            this.displayLimit = 30; // 恢復較小的初始量
+            this.renderCharts();
+          }
+        },
+        activeData: { handler() { this.renderCharts(); } }, // 移除 deep: true
+        archiveData: { handler() { this.renderCharts(); } }, // 移除 deep: true
+        appTitle(n) { document.title = n; }
+      },
+      mounted() {
+        window.addEventListener('scroll', this.infiniteScroll);
+        this.initGasUrl();
+
+        const savedTheme = localStorage.getItem('ahmo_theme') || 'default';
+        this.setTheme(savedTheme);
+
+        // 初始載入：一次抓取所有資料與設定
+        this.isProcessing = true;
+        this.apiCall('getData', null, res => {
+          if (res) {
+            if (res.config) {
+              this.fullConfig = JSON.parse(JSON.stringify(res.config)); // 新增：備份完整設定
+              this.configCats = res.categories || { expense: res.config.EXPENSE_CATS, income: res.config.INCOME_CATS };
+              if (res.config.APP_TITLE) this.appTitle = res.config.APP_TITLE;
+              if (res.config.MONTHLY_BUDGET) this.monthlyBudget = Number(res.config.MONTHLY_BUDGET);
+
+              // 解析 LINE 快速回覆
+              if (res.config.LINE_QUICK_REPLY) {
+                this.quickReplyList = res.config.LINE_QUICK_REPLY.split(/[|\n]/).map(pair => {
+                  const p = pair.split(/[:：]/);
+                  return { label: p[0]?.trim() || '', text: p[1]?.trim() || '' };
+                }).filter(i => i.label);
+              } else {
+                this.quickReplyList = [];
+              }
+            }
+            if (res.activeData) {
+              this.activeData = res.activeData;
+              localStorage.setItem('ahmo_cache', JSON.stringify(res.activeData));
+            }
+            if (res.archiveData) this.archiveData = res.archiveData;
+            if (res.recurData) {
+              // 處理啟用狀態為布林值
+              this.recurData = res.recurData.map(r => ({ ...r, 啟用: r.啟用 === true || r.啟用 === 'TRUE' || r.啟用 === 1 }));
+            }
+            if (res.sheetUrl) this.sheetUrl = res.sheetUrl;
+            if (res.sheetUrl) this.sheetUrl = res.sheetUrl;
+          }
+          this.isProcessing = false;
+          this.$nextTick(() => this.renderCharts());
+        }, e => {
+          this.isProcessing = false;
+          // 若有快取則使用快取
+          const cached = localStorage.getItem('ahmo_cache');
+          if (cached) { try { this.activeData = JSON.parse(cached); } catch (ex) { } }
+          this.showToast('連線失敗：請檢查設定網址或網路狀況', 'error');
+          this.renderCharts();
+        });
+      },
+      beforeDestroy() { window.removeEventListener('scroll', this.infiniteScroll); },
+      methods: {
+        showToast(msg, type = 'success') {
+          const t = { msg, type };
+          this.toasts.push(t);
+          setTimeout(() => { this.toasts.shift(); }, 3000);
+        },
+        setTheme(themeKey) {
+          const t = this.themes[themeKey];
+          if (!t) return;
+          this.currentThemeKey = themeKey;
+          const root = document.documentElement;
+          root.style.setProperty('--primary', t.primary);
+          root.style.setProperty('--secondary', t.secondary);
+          root.style.setProperty('--highlight', t.highlight);
+          root.style.setProperty('--border', t.border);
+          root.style.setProperty('--income', t.income);
+          root.style.setProperty('--expense', t.expense);
+          localStorage.setItem('ahmo_theme', themeKey);
+          this.showThemeMenu = false;
+          this.renderCharts();
+        },
+        async apiCall(method, params, success, failure) {
+          if (this.gasUrl && !window.google?.script?.run) {
+            try {
+              const url = new URL(this.gasUrl);
+              const isGet = (method === 'getData' || method === 'getCategoryConfig');
+              if (isGet) url.searchParams.append('action', method);
+
+              const options = {
+                method: isGet ? 'GET' : 'POST',
+                redirect: 'follow',
+                mode: 'cors'
+              };
+
+              if (!isGet) {
+                options.body = JSON.stringify({ action: method, params: params || [] });
+                options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+              }
+
+              const resp = await fetch(url, options);
+              if (!resp.ok) throw new Error('HTTP Status ' + resp.status);
+              const res = await resp.json();
+              if (success) success(res);
+            } catch (e) {
+              console.error('API Error:', e);
+              if (failure) failure(e); else this.showToast('連線失敗: ' + e.message, 'error');
+            }
+          } else if (window.google?.script?.run) {
+            let r = google.script.run;
+            if (success) r = r.withSuccessHandler(success);
+            if (failure) r = r.withFailureHandler(failure);
+            r[method](...(params || []));
+          } else {
+            this.showSettings = true;
+            this.showToast('請先設定連結網址', 'error');
+          }
+        },
+        initGasUrl() {
+          const p = new URLSearchParams(window.location.search);
+          const c = p.get('config');
+          if (c) {
+            try {
+              const d = atob(c);
+              localStorage.setItem('ahmo_gas_url', d);
+              this.gasUrl = d;
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch (e) { }
+          } else { this.gasUrl = localStorage.getItem('ahmo_gas_url') || DEFAULT_GAS_URL; }
+          this.tempGasUrl = this.gasUrl;
+        },
+        saveFullConfig() {
+          let url = this.tempGasUrl.trim();
+          if (!url) { this.showToast('GAS 網址不可為空', 'error'); return; }
+
+          this.isProcessing = true;
+          const oldUrl = localStorage.getItem('ahmo_gas_url');
+          if (url !== oldUrl) {
+            localStorage.setItem('ahmo_gas_url', url);
+            this.gasUrl = url;
+          }
+
+          // 同步 LINE 快速回覆到 config
+          this.fullConfig.LINE_QUICK_REPLY = this.quickReplyList
+            .filter(i => i.label.trim())
+            .map(i => `${i.label.trim()}:${(i.text || i.label).trim()}`)
+            .join('|');
+
+          const cleanRecurData = this.recurData.map(r => ({
+            ...r,
+            項目: r.項目 || '未命名項目',
+            啟用: r.啟用 ? 'TRUE' : 'FALSE'
+          }));
+
+          // 效能優化：一次性發送所有修改，並清除快取
+          this.apiCall('saveAllSettings', [{ config: this.fullConfig, recur: cleanRecurData }], res => {
+            if (res) {
+              localStorage.removeItem('ahmo_cache'); // 核心：清除本地快取
+              this.showToast('雲端設定已同步，立即生效');
+              this.showSettings = false;
+              location.reload(); // 重整頁面讓標題、預算、顏色等立即刷新
+            } else {
+              this.showToast('同步失敗，請檢查權限', 'error');
+            }
+          }, err => {
+            this.isProcessing = false;
+            this.showToast('儲存失敗：' + err, 'error');
+          });
+        },
+        initSystem() {
+          if (!confirm('將自動建立必要工作表與設定自動排程，確定嗎？')) return;
+          this.isProcessing = true;
+          this.apiCall('runSystemInit', [], res => {
+            this.isProcessing = false;
+            if (res) this.showToast(res);
+            else this.showToast('初始化失敗');
+          });
+        },
+        addQuickReply() {
+          this.quickReplyList.push({ label: '', text: '' });
+        },
+        clearSettings() {
+          if (!confirm('將清除本地儲存的連線網址，確定嗎？')) return;
+          localStorage.removeItem('ahmo_cache');
+          localStorage.removeItem('ahmo_gas_url');
+          location.reload();
+        },
+        addRecurItem() {
+          this.recurData.unshift({
+            頻率: '每月', 日期: '1', 項目: '新規則', 金額: 0, 類別: '', 備註: '', 啟用: true
+          });
+        },
+        removeRecurItem(idx) {
+          if (confirm('確定移除此規則？')) {
+            this.recurData.splice(idx, 1);
+          }
+        },
+        async generateShareLink() {
+          if (!this.gasUrl) { this.showToast('請先儲存 GAS 網址', 'error'); return; }
+          const encoded = btoa(this.gasUrl);
+          this.shareUrl = `${window.location.origin}${window.location.pathname}?config=${encoded}`;
+          try {
+            const fd = new FormData(); fd.append('url', this.shareUrl);
+            const resp = await fetch('https://cleanuri.com/api/v1/shorten', { method: 'POST', body: fd });
+            const res = await resp.json(); if (res.result_url) this.shortUrl = res.result_url;
+          } catch (e) { }
+          this.showToast("分享連結已產生");
+        },
+        copyToClipboard(text) {
+          navigator.clipboard.writeText(text).then(() => {
+            this.showToast('連結已複製到剪貼簿');
+          }).catch(() => {
+            this.showToast('複製失敗', 'error');
+          });
+        },
+        toggleArchive() {
+          this.useArchive = !this.useArchive;
+          if (this.useArchive && this.archiveData.length === 0) {
+            this.isProcessing = true;
+            this.apiCall('fetchArchiveData', null, res => {
+              this.archiveData = res;
+              this.isProcessing = false;
+              this.renderCharts();
+            }, e => {
+              this.isProcessing = false;
+              this.showToast('歷史資料載入失敗', 'error');
+            });
+          }
+        },
+        refreshActiveData(isBackground = false) {
+          if (!isBackground) this.isProcessing = true;
+          this.apiCall('fetchActiveData', null, res => {
+            if (res && res.error) {
+              if (!isBackground) this.showToast('後端報錯：' + res.error, 'error');
+              this.isProcessing = false;
+              return;
+            }
+            this.activeData = res;
+            this.isProcessing = false;
+            localStorage.setItem('ahmo_cache', JSON.stringify(res));
+            this.renderCharts();
+            if (!isBackground) this.showToast('資料已更新');
+          }, e => {
+            this.isProcessing = false;
+            if (!isBackground) this.showToast('連線失敗', 'error');
+          });
+        },
+        resetFilters() {
+          this.filter = { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' };
+        },
+        formatMoney(v) { return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(v); },
+        highlight(text) {
+          if (!text || !this.filter.q.trim()) return text;
+          const regex = new RegExp(`(${this.filter.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+          return text.replace(regex, '<span class="search-highlight">$1</span>');
+        },
+        sortBy(k) { if (this.sortKey === k) this.sortDesc = !this.sortDesc; else { this.sortKey = k; this.sortDesc = true; } },
+        getSortIcon(k) { if (this.sortKey !== k) return 'fas fa-sort'; return this.sortDesc ? 'fas fa-sort-down' : 'fas fa-sort-up'; },
+        getIcon(cat) {
+          if (!cat) return '🏷️';
+          if (this.iconCache[cat]) return this.iconCache[cat];
+
+          const c = String(cat);
+          let icon = '✨';
+          if (c.match(/薪|工資/)) icon = '💰';
+          else if (c.match(/獎|紅包/)) icon = '🧧';
+          else if (c.match(/投|資|股|匯/)) icon = '📈';
+          else if (c.match(/回饋|退|折/)) icon = '💸';
+          else if (c.match(/育兒|嬰|童|寶|尿布|奶/)) icon = '👶';
+          else if (c.match(/捐|佛|廟|神|奉|獻|公德/)) icon = '🙏';
+          else if (c.match(/旅|宿|飛|機票|遊/)) icon = '✈️';
+          else if (c.match(/醫|藥|病|診|牙|健/)) icon = '🏥';
+          else if (c.match(/贈|禮|送|客/)) icon = '🎁';
+          else if (c.match(/學|書|課|補|讀|教/)) icon = '📖';
+          else if (c.match(/訂閱|會員|月費/)) icon = '💳';
+          else if (c.match(/食|餐|飲|吃|喝|酒/)) icon = '🍚';
+          else if (c.match(/衣|服|鞋|包|飾|妝/)) icon = '👚';
+          else if (c.match(/住|房|水|電|氣|網|租/)) icon = '🏠';
+          else if (c.match(/行|車|油|運|票|交通/)) icon = '🚗';
+          else if (c.match(/樂|玩|影|音|唱|戲|休閒/)) icon = '🎮';
+          else if (c.match(/購|買|日用|貨|商|超商/)) icon = '🛍️';
+
+          this.iconCache[cat] = icon;
+          return icon;
+        },
+        openModal(mode, item = null) {
+          this.modalMode = mode;
+          if (mode === 'add') this.form = { date: new Date().toISOString().slice(0, 10), type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' };
+          else if (mode === 'edit') Object.assign(this.form, item);
+          else if (mode === 'range') this.rangeForm = { start: new Date().toISOString().slice(0, 10), end: new Date().toISOString().slice(0, 10) };
+          else if (mode === 'budget') this.form.amount = this.monthlyBudget;
+          this.showModal = true;
+        },
+        submitForm() {
+          if (this.modalMode === 'range') {
+            if (this.rangeForm.start > this.rangeForm.end) { this.showToast('日期區間錯誤', 'error'); return; }
+            this.filter.customRange = { start: this.rangeForm.start, end: this.rangeForm.end };
+            this.filter.customRangeText = `${this.rangeForm.start.slice(5)}~${this.rangeForm.end.slice(5)}`;
+            this.filter.month = this.filter.customRange;
+            this.showModal = false;
+            return;
+          }
+          if (this.modalMode === 'budget') {
+            const newBudget = Number(this.form.amount);
+            if (!newBudget || newBudget < 0) { this.showToast('金額無效', 'error'); return; }
+            this.isProcessing = true;
+            this.apiCall('updateBudget', [newBudget], res => {
+              this.isProcessing = false;
+              this.monthlyBudget = newBudget;
+              this.showToast('標預算已更新');
+              this.showModal = false;
+            });
+            return;
+          }
+          this.isProcessing = true;
+          const data = [this.form.date, this.form.type, this.form.category, this.form.item, this.form.amount, this.form.note];
+          const done = () => { this.refreshActiveData(); this.showModal = false; this.showToast('成功'); };
+          const fail = (e) => { this.isProcessing = false; this.showToast('存檔失敗', 'error'); };
+          if (this.modalMode === 'add') this.apiCall('addData', [data], done, fail);
+          else this.apiCall('updateData', [this.form.row, data, this.form.sheet], done, fail);
+        },
+        deleteRow(item) {
+          if (confirm(`確定刪除？`)) {
+            this.isProcessing = true;
+            this.apiCall('deleteData', [item.row, item.sheet], () => {
+              this.refreshActiveData();
+              this.showToast('已刪除');
+            }, e => {
+              this.isProcessing = false;
+              this.showToast('刪除失敗', 'error');
+            });
+          }
+        },
+        infiniteScroll() {
+          if (this._scrollLocked) return;
+          this._scrollLocked = true;
+          requestAnimationFrame(() => {
+            let threshold = 200;
+            let bottomOfWindow = document.documentElement.scrollTop + window.innerHeight >= document.documentElement.offsetHeight - threshold;
+            if (bottomOfWindow && this.hasMoreItems) {
+              this.displayLimit += 50;
+            }
+            this._scrollLocked = false;
+          });
+        },
+        renderCharts() {
+          if (this._chartDebounce) clearTimeout(this._chartDebounce);
+          this._chartDebounce = setTimeout(() => {
+            this.$nextTick(() => {
+              const ctxCat = document.getElementById('chartCat');
+              const ctxTrend = document.getElementById('chartTrend');
+              if (!ctxCat || !ctxTrend || this.items.length === 0) return;
+              const typeToShow = this.filter.type === '收入' ? '收入' : '支出';
+              const t = this.themes[this.currentThemeKey];
+              const palette = typeToShow === '收入' ? [t.chartInc, '#81C784', '#A5D6A7'] : [t.primary, '#9FA8DA', '#B39DDB'];
+              const catMap = {};
+              this.filteredItems.filter(i => i.type === typeToShow).forEach(i => { catMap[i.category] = (catMap[i.category] || 0) + i.amount; });
+              if (this.charts.cat) this.charts.cat.destroy();
+              this.charts.cat = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: { labels: Object.keys(catMap), datasets: [{ data: Object.values(catMap), backgroundColor: palette }] },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  onClick: (e, el) => {
+                    if (el.length > 0) this.filter.cat = this.charts.cat.data.labels[el[0].index];
+                  },
+                  plugins: { legend: { position: 'bottom' } }
+                }
+              });
+              const months = [...new Set(this.items.map(i => i.date.slice(0, 7)))].sort();
+              const inc = months.map(m => this.items.filter(i => i.date.startsWith(m) && i.type === '收入').reduce((a, b) => a + b.amount, 0));
+              const exp = months.map(m => this.items.filter(i => i.date.startsWith(m) && i.type === '支出').reduce((a, b) => a + b.amount, 0));
+              if (this.charts.trend) this.charts.trend.destroy();
+              this.charts.trend = new Chart(ctxTrend, {
+                type: 'bar',
+                data: {
+                  labels: months.map(m => m.split('-')[1] + '月'),
+                  datasets: [
+                    { label: '收入', data: inc, backgroundColor: t.chartInc },
+                    { label: '支出', data: exp, backgroundColor: t.chartExp }
+                  ]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  onClick: (e, el) => {
+                    if (el.length > 0) {
+                      this.filter.month = months[el[0].index];
+                      this.filter.type = el[0].datasetIndex === 0 ? '收入' : '支出';
+                    } else {
+                      const points = this.charts.trend.getElementsAtEventForMode(e, 'index', { intersect: false }, true);
+                      if (points.length > 0) {
+                        this.filter.month = months[points[0].index];
+                        this.filter.type = '';
+                      }
+                    }
+                  }
+                }
+              });
+            });
+          }, 300);
+        },
+        openSheet() {
+          window.open(this.sheetUrl || '#', '_blank');
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>
