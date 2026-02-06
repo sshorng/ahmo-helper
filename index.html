@@ -442,11 +442,17 @@
       /* 低於 Modal 的 2000，避免擋住設定視窗 */
       backdrop-filter: blur(2px);
       pointer-events: none;
-      /* 允許穿透點擊，除非在特定操作中 */
+      /* 允許穿透過去 */
+      transition: opacity 0.3s;
+      opacity: 0;
     }
 
-    .loading-overlay.blocking {
+    .loading-overlay.active {
+      opacity: 1;
       pointer-events: auto;
+    }
+
+    .loading-overlay.active.blocking {
       background: rgba(255, 255, 255, 0.6);
       z-index: 9999;
     }
@@ -1194,11 +1200,18 @@
           <div v-if="settingsTab === 'general'">
             <div class="setting-section-title"><i class="fas fa-link"></i> API 與連線設定</div>
             <div class="setting-card">
-              <div class="setting-group">
+              <div class="setting-group" style="margin-bottom: 0;">
                 <label class="setting-label">GAS Web App URL (關鍵)</label>
-                <input type="password" v-model="tempGasUrl" placeholder="請填入 .gs 部署後的網址" style="background:#fff;">
+                <div style="display:flex; gap:8px;">
+                  <input type="password" v-model="tempGasUrl" placeholder="請填入 .gs 部署後的網址"
+                    style="background:#fff; flex:1;">
+                  <button @click="initSystem" class="btn outline"
+                    style="width:auto; padding:0 15px; white-space:nowrap;">
+                    <i class="fas fa-magic"></i> 初始化
+                  </button>
+                </div>
               </div>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
                 <div class="setting-group">
                   <label class="setting-label">Gemini API Key</label>
                   <input type="password" v-model="fullConfig.GEMINI_API_KEY" placeholder="Gemini 金鑰">
@@ -1208,9 +1221,6 @@
                   <input type="password" v-model="fullConfig.LINE_ACCESS_TOKEN" placeholder="Line Access Token">
                 </div>
               </div>
-              <button @click="initSystem" class="btn outline" style="width:100%; margin-top:10px;">
-                <i class="fas fa-magic"></i> 初始化工作表與提醒
-              </button>
             </div>
 
             <div class="setting-section-title"><i class="fas fa-share-alt"></i> 共享設定</div>
@@ -1344,8 +1354,8 @@
                 <input type="text" v-model="item.備註" placeholder="輸入備註..." style="border-radius:12px;">
               </div>
             </div>
-          </div>
-        </div>
+          </div> <!-- end recur tab -->
+        </div> <!-- end scroll container -->
 
         <div
           style="flex-shrink:0; margin-top:25px; display:flex; justify-content:center; border-top:1px solid #f0f0f0; padding-top:25px;">
@@ -1355,10 +1365,10 @@
             <span v-else>確認並同步雲端</span>
           </button>
         </div>
-      </div>
-    </div>
+      </div> <!-- Closes modal-window -->
+    </div> <!-- Closes modal-overlay -->
 
-  </div>
+  </div> <!-- end app -->
 
   <script>
     const DEFAULT_GAS_URL = "";
@@ -1535,6 +1545,7 @@
         // 初始載入：一次抓取所有資料與設定
         this.isProcessing = true;
         this.apiCall('getData', null, res => {
+          this.isProcessing = false;
           if (res) {
             if (res.config) {
               this.fullConfig = JSON.parse(JSON.stringify(res.config)); // 新增：備份完整設定
@@ -1562,16 +1573,20 @@
               this.recurData = res.recurData.map(r => ({ ...r, 啟用: r.啟用 === true || r.啟用 === 'TRUE' || r.啟用 === 1 }));
             }
             if (res.sheetUrl) this.sheetUrl = res.sheetUrl;
-            if (res.sheetUrl) this.sheetUrl = res.sheetUrl;
           }
-          this.isProcessing = false;
           this.$nextTick(() => this.renderCharts());
         }, e => {
           this.isProcessing = false;
           // 若有快取則使用快取
           const cached = localStorage.getItem('ahmo_cache');
           if (cached) { try { this.activeData = JSON.parse(cached); } catch (ex) { } }
-          this.showToast('連線失敗：請檢查設定網址或網路狀況', 'error');
+
+          // 如果沒有 GAS URL，則不彈出「連線失敗」，避免擾人
+          if (this.gasUrl) {
+            this.showToast('連線失敗：請檢查設定網址或網路狀況', 'error');
+          } else {
+            this.showSettings = true;
+          }
           this.renderCharts();
         });
       },
@@ -1601,7 +1616,7 @@
           if (this.gasUrl && !window.google?.script?.run) {
             try {
               const url = new URL(this.gasUrl);
-              const isGet = (method === 'getData' || method === 'getCategoryConfig');
+              const isGet = (method === 'getData' || method === 'getCategoryConfig' || method === 'fetchActiveData' || method === 'fetchArchiveData');
               if (isGet) url.searchParams.append('action', method);
 
               const options = {
@@ -1615,7 +1630,7 @@
                 options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
               }
 
-              const resp = await fetch(url, options);
+              const resp = await fetch(url.toString(), options);
               if (!resp.ok) throw new Error('HTTP Status ' + resp.status);
               const res = await resp.json();
               if (success) success(res);
@@ -1629,8 +1644,11 @@
             if (failure) r = r.withFailureHandler(failure);
             r[method](...(params || []));
           } else {
-            this.showSettings = true;
-            this.showToast('請先設定連結網址', 'error');
+            if (method !== 'getData') { // 避免初始化時重複跳轉
+              this.showSettings = true;
+              this.showToast('請先設定連結網址', 'error');
+            }
+            if (failure) failure('No URL');
           }
         },
         initGasUrl() {
@@ -1779,10 +1797,10 @@
 
           const c = String(cat);
           let icon = '✨';
-          if (c.match(/薪|工資/)) icon = '💰';
-          else if (c.match(/獎|紅包/)) icon = '🧧';
-          else if (c.match(/投|資|股|匯/)) icon = '📈';
-          else if (c.match(/回饋|退|折/)) icon = '💸';
+          if (c.match(/薪|工資|酬/)) icon = '💰';
+          else if (c.match(/獎|紅包|禮金/)) icon = '🧧';
+          else if (c.match(/投|資|股|匯|利息/)) icon = '📈';
+          else if (c.match(/回饋|退|折|補貼/)) icon = '💸';
           else if (c.match(/育兒|嬰|童|寶|尿布|奶/)) icon = '👶';
           else if (c.match(/捐|佛|廟|神|奉|獻|公德/)) icon = '🙏';
           else if (c.match(/旅|宿|飛|機票|遊/)) icon = '✈️';
@@ -1790,16 +1808,18 @@
           else if (c.match(/贈|禮|送|客/)) icon = '🎁';
           else if (c.match(/學|書|課|補|讀|教/)) icon = '📖';
           else if (c.match(/訂閱|會員|月費/)) icon = '💳';
-          else if (c.match(/食|餐|飲|吃|喝|酒/)) icon = '🍚';
+          else if (c.match(/食|餐|飲|吃|喝|酒|午|晚|早/)) icon = '🍚';
           else if (c.match(/衣|服|鞋|包|飾|妝/)) icon = '👚';
           else if (c.match(/住|房|水|電|氣|網|租/)) icon = '🏠';
-          else if (c.match(/行|車|油|運|票|交通/)) icon = '🚗';
+          else if (c.match(/行|車|油|運|票|交通|捷|鐵/)) icon = '🚗';
           else if (c.match(/樂|玩|影|音|唱|戲|休閒/)) icon = '🎮';
           else if (c.match(/購|買|日用|貨|商|超商/)) icon = '🛍️';
+          else if (c.match(/稅|費|轉帳|匯/)) icon = '📄';
 
           this.iconCache[cat] = icon;
           return icon;
         },
+
         openModal(mode, item = null) {
           this.modalMode = mode;
           if (mode === 'add') this.form = { date: new Date().toISOString().slice(0, 10), type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' };
