@@ -606,6 +606,84 @@
       box-shadow: 0 0 0 1px #ddd;
     }
 
+    /* 🎨 自訂對話框系統 (取代 confirm/prompt) */
+    .sys-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 3000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .sys-modal {
+      background: white;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 400px;
+      padding: 24px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      animation: scaleUp 0.2s ease-out;
+    }
+
+    .sys-modal-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+
+    .sys-modal-msg {
+      font-size: 0.95rem;
+      color: #666;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .sys-modal-input {
+      margin-bottom: 20px;
+    }
+
+    .sys-modal-btns {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .btn-ghost {
+      background: #f5f5f5;
+      color: #666;
+    }
+
+    .btn-ghost:hover {
+      background: #eee;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-danger {
+      background: var(--expense);
+      color: white;
+    }
+
     /* 🍞 Toast 通知 */
     .toast-container {
       position: fixed;
@@ -1473,6 +1551,23 @@
       </div> <!-- Closes modal-window -->
     </div> <!-- Closes modal-overlay -->
 
+    <!-- 🎨 自訂對話框系統 HTML -->
+    <div v-if="sysModal.show" class="sys-modal-overlay">
+      <div class="sys-modal">
+        <div class="sys-modal-title">{{ sysModal.title }}</div>
+        <div class="sys-modal-msg" v-html="sysModal.msg"></div>
+        <div v-if="sysModal.type === 'prompt'" class="sys-modal-input">
+          <input v-model="sysModal.inputValue" :placeholder="sysModal.placeholder" ref="sysInput">
+        </div>
+        <div class="sys-modal-btns">
+          <button @click="sysModal.onCancel" class="btn btn-ghost">{{ sysModal.cancelText }}</button>
+          <button @click="sysModal.onConfirm" :class="['btn', sysModal.isDanger ? 'btn-danger' : 'btn-primary']">
+            {{ sysModal.confirmText }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div> <!-- end app -->
 
   <script>
@@ -1491,24 +1586,13 @@
         const state = reactive({
           gasUrl: '', tempGasUrl: '', shareUrl: '', shortUrl: '', sheetUrl: '',
           activeData: initialDataFromServer, archiveData: [], useArchive: false, isProcessing: false,
-          recurData: [], // 定期收支資料
-          monthlyBudget: initialBudget, appTitle: initialAppTitle,
+          recurData: [], monthlyBudget: initialBudget, appTitle: initialAppTitle,
           filter: { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' },
-          sortKey: 'date', sortDesc: true,
-          showModal: false, modalMode: 'add', showThemeMenu: false, currentThemeKey: 'default',
-          showSettings: false, settingsTab: 'general',
-          showAdvModel: false, // 展開/收合模型設定
-          fullConfig: {},
-          quickReplyList: [], // LINE 快速回覆列表
-          configCats: null,
-          displayLimit: 30,
-          form: { date: '', type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' },
-          rangeForm: { start: '', end: '' },
-          charts: { cat: null, trend: null },
-          toasts: [],
-          iconCache: {}, // 新增：快取圖示以提升渲染速度
-          selectedRows: [], // 批次選取的項目
-          batchMode: false, // 是否開啟批次模式
+          sortKey: 'date', sortDesc: true, showModal: false, modalMode: 'add', showThemeMenu: false, currentThemeKey: 'default',
+          showSettings: false, settingsTab: 'general', showAdvModel: false, fullConfig: {}, quickReplyList: [], configCats: null,
+          displayLimit: 30, form: { date: '', type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' },
+          rangeForm: { start: '', end: '' }, charts: { cat: null, trend: null }, toasts: [], iconCache: {}, selectedRows: [], batchMode: false,
+          sysModal: { show: false, title: '', msg: '', type: 'confirm', inputValue: '', placeholder: '', confirmText: '確定', cancelText: '取消', isDanger: false, onConfirm: null, onCancel: null }
         });
 
         // 【典雅配色系統】
@@ -1535,143 +1619,283 @@
           }
         };
 
-        const showToast = (msg, type = 'success') => {
-          const t = { msg, type };
-          state.toasts.push(t);
-          setTimeout(() => { state.toasts.shift(); }, 3000);
+        // ======= 🎨 [Composable] 自訂對話框系統 =======
+        const useSystemModal = () => {
+          const sysConfirm = (msg, title = '確認操作', isDanger = false) => {
+            return new Promise((resolve) => {
+              state.sysModal = {
+                show: true, title, msg, type: 'confirm', isDanger,
+                confirmText: '確定', cancelText: '取消',
+                onConfirm: () => { state.sysModal.show = false; resolve(true); },
+                onCancel: () => { state.sysModal.show = false; resolve(false); }
+              };
+            });
+          };
+
+          const sysPrompt = (msg, title = '輸入資料', defaultValue = '', placeholder = '') => {
+            return new Promise((resolve) => {
+              state.sysModal = {
+                show: true, title, msg, type: 'prompt', inputValue: defaultValue, placeholder,
+                confirmText: '提交', cancelText: '取消',
+                onConfirm: () => {
+                  const val = state.sysModal.inputValue;
+                  state.sysModal.show = false;
+                  resolve(val);
+                },
+                onCancel: () => { state.sysModal.show = false; resolve(null); }
+              };
+            });
+          };
+
+          return { sysConfirm, sysPrompt };
         };
+        const { sysConfirm, sysPrompt } = useSystemModal();
 
-        const setTheme = (themeKey) => {
-          const t = themes[themeKey];
-          if (!t) return;
-          state.currentThemeKey = themeKey;
-          const root = document.documentElement;
-          root.style.setProperty('--primary', t.primary);
-          root.style.setProperty('--secondary', t.secondary);
-          root.style.setProperty('--highlight', t.highlight);
-          root.style.setProperty('--border', t.border);
-          root.style.setProperty('--income', t.income);
-          root.style.setProperty('--expense', t.expense);
-          localStorage.setItem('ahmo_theme', themeKey);
-          state.showThemeMenu = false;
-          if (typeof renderCharts === 'function') renderCharts();
+        // ======= 🌐 [Composable] API 通訊系統 =======
+        const useApi = () => {
+          const apiCall = async (method, params, success, failure) => {
+            if (state.gasUrl && !window.google?.script?.run) {
+              try {
+                const url = new URL(state.gasUrl);
+                const isGet = ['getData', 'getCategoryConfig', 'fetchActiveData', 'fetchArchiveData'].includes(method);
+                if (isGet) url.searchParams.append('action', method);
+                const options = { method: isGet ? 'GET' : 'POST', redirect: 'follow', mode: 'cors' };
+                if (!isGet) {
+                  options.body = JSON.stringify({ action: method, params: params || [] });
+                  options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+                }
+                const resp = await fetch(url.toString(), options);
+                if (!resp.ok) throw new Error('HTTP Status ' + resp.status);
+                const res = await resp.json();
+                if (success) success(res);
+              } catch (e) {
+                console.error('API Error:', e);
+                if (failure) failure(e); else showToast('連線失敗: ' + e.message, 'error');
+              }
+            } else if (window.google?.script?.run) {
+              let r = google.script.run;
+              if (success) r = r.withSuccessHandler(success);
+              if (failure) r = r.withFailureHandler(failure);
+              r[method](...(params || []));
+            } else {
+              if (method !== 'getData') { state.showSettings = true; showToast('請先設定連結網址', 'error'); }
+              if (failure) failure('No URL');
+            }
+          };
+
+          const initGasUrl = () => {
+            const p = new URLSearchParams(window.location.search);
+            const c = p.get('config');
+            if (c) {
+              try {
+                const d = atob(c);
+                localStorage.setItem('ahmo_gas_url', d);
+                state.gasUrl = d;
+                window.history.replaceState({}, document.title, window.location.pathname);
+              } catch (ex) { }
+            } else {
+              state.gasUrl = localStorage.getItem('ahmo_gas_url') || DEFAULT_GAS_URL;
+            }
+            state.tempGasUrl = state.gasUrl;
+          };
+
+          return { apiCall, initGasUrl };
         };
-        const modalTitle = computed(() => {
-          if (state.modalMode === 'range') return '📅 設定查詢期間';
-          if (state.modalMode === 'budget') return '💰 設定每月預算';
-          return state.modalMode === 'add' ? '🖊️ 記一筆' : '📝 修改帳務';
-        });
+        const { apiCall, initGasUrl } = useApi();
 
-        const modalCatOptions = computed(() => {
-          if (!state.configCats) return [];
-          const raw = state.form.type === '收入' ? state.configCats.income : state.configCats.expense;
-          return raw ? raw.split(',').map(c => c.trim()) : [];
-        });
+        // ======= 🍞 [Composable] UI 與通知系統 =======
+        const useUi = () => {
+          const showToast = (msg, type = 'success') => {
+            const t = { msg, type }; state.toasts.push(t);
+            setTimeout(() => { state.toasts.shift(); }, 3000);
+          };
+          const setTheme = (themeKey) => {
+            const t = themes[themeKey]; if (!t) return;
+            state.currentThemeKey = themeKey;
+            const root = document.documentElement;
+            const props = { '--primary': t.primary, '--secondary': t.secondary, '--highlight': t.highlight, '--border': t.border, '--income': t.income, '--expense': t.expense };
+            Object.entries(props).forEach(([k, v]) => root.style.setProperty(k, v));
+            localStorage.setItem('ahmo_theme', themeKey); state.showThemeMenu = false;
+            nextTick(() => { if (typeof renderCharts === 'function') renderCharts(); });
+          };
+          const formatMoney = (v) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(v);
+          const highlightText = (text) => {
+            if (!text || !state.filter.q.trim()) return text;
+            const regex = new RegExp(`(${state.filter.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<span class="search-highlight">$1</span>');
+          };
+          const getIcon = (cat) => {
+            if (!cat) return '🏷️'; if (state.iconCache[cat]) return state.iconCache[cat];
+            const c = String(cat);
+            const rules = [{ r: /薪|工資|酬/, i: '💰' }, { r: /獎|紅包|禮金/, i: '🧧' }, { r: /投|資|股|匯|利息/, i: '📈' }, { r: /回饋|退|折|補貼/, i: '💸' }, { r: /育兒|嬰|童|寶|尿布|奶/, i: '👶' }, { r: /捐|佛|廟|神|奉|獻|公德/, i: '🙏' }, { r: /旅|宿|飛|機票|遊/, i: '✈️' }, { r: /醫|藥|病|診|牙|健/, i: '🏥' }, { r: /贈|禮|送|客/, i: '🎁' }, { r: /學|書|課|補|讀|教/, i: '📖' }, { r: /訂閱|會員|月費/, i: '💳' }, { r: /食|餐|飲|吃|喝|酒|午|晚|早/, i: '🍚' }, { r: /衣|服|鞋|包|飾|妝/, i: '👚' }, { r: /住|房|水|電|氣|網|租/, i: '🏠' }, { r: /行|車|油|運|票|交通|捷|鐵/, i: '🚗' }, { r: /樂|玩|影|音|唱|戲|休閒/, i: '🎮' }, { r: /購|買|日用|貨|商|超商/, i: '🛍️' }, { r: /稅|費|轉帳|匯/, i: '📄' }];
+            const found = rules.find(r => c.match(r.r)); state.iconCache[cat] = found ? found.i : '✨';
+            return state.iconCache[cat];
+          };
+          return { showToast, setTheme, formatMoney, highlightText, getIcon };
+        };
+        const { showToast, setTheme, formatMoney, highlightText, getIcon } = useUi();
 
-        const allData = computed(() => Array.isArray(state.activeData) ? (state.useArchive ? [...state.activeData, ...state.archiveData] : state.activeData) : []);
+        // ======= 📊 [Composable] 圖表渲染系統 =======
+        const useCharts = () => {
+          const renderCharts = () => {
+            if (state._chartDebounce) clearTimeout(state._chartDebounce);
+            state._chartDebounce = setTimeout(() => {
+              nextTick(() => {
+                const ctxCat = document.getElementById('chartCat'), ctxTrend = document.getElementById('chartTrend');
+                if (!ctxCat || !ctxTrend || items.value.length === 0) return;
+                const typeToShow = state.filter.type === '收入' ? '收入' : '支出';
+                const t = themes[state.currentThemeKey];
+                const catMap = {}; filteredItems.value.filter(i => i.type === typeToShow).forEach(i => { catMap[i.category] = (catMap[i.category] || 0) + i.amount; });
+                if (state.charts.cat) state.charts.cat.destroy();
+                state.charts.cat = new Chart(ctxCat, { type: 'doughnut', data: { labels: Object.keys(catMap), datasets: [{ data: Object.values(catMap), backgroundColor: typeToShow === '收入' ? [t.chartInc, '#81C784', '#A5D6A7'] : [t.primary, '#9FA8DA', '#B39DDB'] }] }, options: { responsive: true, maintainAspectRatio: false, onClick: (e, el) => { if (el.length > 0) state.filter.cat = state.charts.cat.data.labels[el[0].index]; }, plugins: { legend: { position: 'bottom' } } } });
+                const months = [...new Set(items.value.map(i => i.date.slice(0, 7)))].sort();
+                if (state.charts.trend) state.charts.trend.destroy();
+                state.charts.trend = new Chart(ctxTrend, { type: 'bar', data: { labels: months.map(m => m.split('-')[1] + '月'), datasets: [{ label: '收入', data: months.map(m => items.value.filter(i => i.date.startsWith(m) && i.type === '收入').reduce((a, b) => a + b.amount, 0)), backgroundColor: t.chartInc }, { label: '支出', data: months.map(m => items.value.filter(i => i.date.startsWith(m) && i.type === '支出').reduce((a, b) => a + b.amount, 0)), backgroundColor: t.chartExp }] }, options: { responsive: true, maintainAspectRatio: false, onClick: (e, el) => { if (el.length > 0) { state.filter.month = months[el[0].index]; state.filter.type = el[0].datasetIndex === 0 ? '收入' : '支出'; } else { const pt = state.charts.trend.getElementsAtEventForMode(e, 'index', { intersect: false }, true); if (pt.length > 0) { state.filter.month = months[pt[0].index]; state.filter.type = ''; } } } } });
+              });
+            }, 300);
+          };
+          return { renderCharts };
+        };
+        const { renderCharts } = useCharts();
 
-        const items = computed(() => {
-          if (!Array.isArray(allData.value)) return [];
-          return allData.value.map(r => ({ date: r[0], type: r[1], category: r[2], item: r[3], amount: Number(String(r[4] || 0).replace(/,/g, '')), note: r[5], row: r[6], sheet: r[7] }));
-        });
+        // ======= 💰 [Composable] 帳務核心邏輯 =======
+        const useTransactions = () => {
+          const openModal = (mode, item = null) => {
+            state.modalMode = mode;
+            if (mode === 'add') state.form = { date: new Date().toISOString().slice(0, 10), type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' };
+            else if (mode === 'edit') Object.assign(state.form, item);
+            else if (mode === 'range') state.rangeForm = { start: new Date().toISOString().slice(0, 10), end: new Date().toISOString().slice(0, 10) };
+            else if (mode === 'budget') state.form.amount = state.monthlyBudget;
+            state.showModal = true;
+          };
+          const submitForm = () => {
+            if (state.modalMode === 'range') {
+              if (state.rangeForm.start > state.rangeForm.end) { showToast('日期區間錯誤', 'error'); return; }
+              state.filter.customRange = { start: state.rangeForm.start, end: state.rangeForm.end }; state.filter.customRangeText = `${state.rangeForm.start.slice(5)}~${state.rangeForm.end.slice(5)}`;
+              state.filter.month = state.filter.customRange; state.showModal = false; return;
+            }
+            if (state.modalMode === 'budget') {
+              const nb = Number(state.form.amount); if (!nb || nb < 0) { showToast('金額無效', 'error'); return; }
+              state.isProcessing = true; apiCall('updateBudget', [nb], () => { state.isProcessing = false; state.monthlyBudget = nb; showToast('標預算已更新'); state.showModal = false; });
+              return;
+            }
+            state.isProcessing = true;
+            const data = [state.form.date, state.form.type, state.form.category, state.form.item, state.form.amount, state.form.note];
+            const done = () => { refreshActiveData(); state.showModal = false; showToast('成功'); };
+            if (state.modalMode === 'add') apiCall('addData', [data], done, () => state.isProcessing = false);
+            else apiCall('updateData', [state.form.row, data, state.form.sheet], done, () => state.isProcessing = false);
+          };
+          const deleteRow = async (item) => {
+            if (await sysConfirm('確定刪除此筆帳目？', '刪除確認', true)) {
+              state.isProcessing = true;
+              apiCall('deleteData', [item.row, item.sheet], () => { refreshActiveData(); showToast('已刪除'); state.selectedRows = state.selectedRows.filter(r => r.row !== item.row || r.sheet !== item.sheet); }, () => state.isProcessing = false);
+            }
+          };
+          const batchDelete = async () => {
+            if (state.selectedRows.length === 0) return;
+            if (await sysConfirm(`確定批次刪除 ${state.selectedRows.length} 筆項目？`, '批次刪除', true)) {
+              state.isProcessing = true; apiCall('batchDeleteData', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet }))], () => { refreshActiveData(); state.selectedRows = []; showToast('已批次刪除'); }, () => state.isProcessing = false);
+            }
+          };
+          const batchChangeCat = async () => {
+            if (state.selectedRows.length === 0) return;
+            const newCat = await sysPrompt("請輸入新的分類名稱：", "批次修改分類");
+            if (newCat && newCat.trim()) {
+              state.isProcessing = true; apiCall('batchUpdateCategory', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet })), newCat.trim()], () => { refreshActiveData(); state.selectedRows = []; showToast('已批次更新'); }, () => state.isProcessing = false);
+            }
+          };
+          const refreshActiveData = (bg = false) => {
+            if (!bg) state.isProcessing = true;
+            apiCall('fetchActiveData', null, res => {
+              if (res && res.error) { if (!bg) showToast(res.error, 'error'); state.isProcessing = false; return; }
+              state.activeData = res; state.isProcessing = false; localStorage.setItem('ahmo_cache', JSON.stringify(res));
+              renderCharts(); if (!bg) showToast('資料已同步');
+            }, () => state.isProcessing = false);
+          };
+          const toggleArchive = () => {
+            state.useArchive = !state.useArchive;
+            if (state.useArchive && state.archiveData.length === 0) {
+              state.isProcessing = true; apiCall('fetchArchiveData', null, res => { state.archiveData = res; state.isProcessing = false; renderCharts(); }, () => state.isProcessing = false);
+            }
+          };
+          return { openModal, submitForm, deleteRow, batchDelete, batchChangeCat, refreshActiveData, toggleArchive };
+        };
+        const { openModal, submitForm, deleteRow, batchDelete, batchChangeCat, refreshActiveData, toggleArchive } = useTransactions();
 
+        const infiniteScroll = () => {
+          if (state._scrollLocked) return; state._scrollLocked = true;
+          requestAnimationFrame(() => { if (document.documentElement.scrollTop + window.innerHeight >= document.documentElement.offsetHeight - 200 && hasMoreItems.value) { state.displayLimit += 50; } state._scrollLocked = false; });
+        };
+        const sortBy = (k) => { if (state.sortKey === k) state.sortDesc = !state.sortDesc; else { state.sortKey = k; state.sortDesc = true; } };
+        const getSortIcon = (k) => state.sortKey !== k ? 'fas fa-sort' : (state.sortDesc ? 'fas fa-sort-down' : 'fas fa-sort-up');
+        const isSelected = (item) => state.selectedRows.some(r => r.row === item.row && r.sheet === item.sheet);
+        const toggleSelectAll = () => { state.selectedRows = isAllSelected.value ? [] : [...displayItems.value]; };
+        const saveFullConfig = () => {
+          if (!state.tempGasUrl.trim()) { showToast('GAS 網址不可為空', 'error'); return; }
+          state.isProcessing = true; localStorage.setItem('ahmo_gas_url', state.tempGasUrl.trim()); state.gasUrl = state.tempGasUrl.trim();
+          state.fullConfig.LINE_QUICK_REPLY = state.quickReplyList.filter(i => i.label.trim()).map(i => `${i.label.trim()}:${(i.text || i.label).trim()}`).join('|');
+          const recur = state.recurData.map(r => ({ ...r, 項目: r.項目 || '未命名項目', 啟用: r.啟用 ? 'TRUE' : 'FALSE' }));
+          apiCall('saveAllSettings', [{ config: state.fullConfig, recur }], () => { localStorage.removeItem('ahmo_cache'); showToast('雲端設定已同步'); location.reload(); }, () => state.isProcessing = false);
+        };
+        const clearSettings = async () => { if (await sysConfirm('將清除本地儲存的連線網址，確定嗎？', '清除設定', true)) { localStorage.removeItem('ahmo_cache'); localStorage.removeItem('ahmo_gas_url'); location.reload(); } };
+        const initSystem = async () => { if (await sysConfirm('將自動建立必要工作表與設定自動排程，確定嗎？', '系統初始化')) { state.isProcessing = true; apiCall('runSystemInit', [], res => { state.isProcessing = false; showToast(res || '初始化完成'); }); } };
+        const generateShareLink = async () => {
+          if (!state.gasUrl) { showToast('請先儲存 GAS 網址', 'error'); return; }
+          state.shareUrl = `${window.location.origin}${window.location.pathname}?config=${btoa(state.gasUrl)}`;
+          try {
+            const fd = new FormData(); fd.append('url', state.shareUrl);
+            const r = await fetch('https://cleanuri.com/api/v1/shorten', { method: 'POST', body: fd });
+            const res = await r.json(); if (res.result_url) state.shortUrl = res.result_url;
+          } catch (e) { }
+          showToast("分享連結已產生");
+        };
+        const copyToClipboard = (t) => { navigator.clipboard.writeText(t).then(() => showToast('已複製')); };
+        const addQuickReply = () => { state.quickReplyList.push({ label: '', text: '' }); };
+        const addRecurItem = () => {
+          state.recurData.unshift({
+            頻率: '每月', 日期: '1', 項目: '新規則', 金額: 0, 類別: '', 備註: '', 啟用: true
+          });
+        };
+        const removeRecurItem = (idx) => { if (confirm('確定移除？')) state.recurData.splice(idx, 1); };
+        const openSheet = () => window.open(state.sheetUrl || '#', '_blank');
+        const resetFilters = () => { state.filter = { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' }; };
+
+
+        const allData = computed(() => state.useArchive ? [...state.activeData, ...state.archiveData] : state.activeData);
+        const items = computed(() => (allData.value || []).map(r => ({ date: r[0], type: r[1], category: r[2], item: r[3], amount: Number(String(r[4] || 0).replace(/,/g, '')), note: r[5], row: r[6], sheet: r[7] })));
         const filteredItems = computed(() => {
           let res = items.value.filter(i => {
-            const qMatch = (i.item + i.note).toLowerCase().includes(state.filter.q.toLowerCase());
-            let mMatch = true;
-            if (state.filter.customRange) {
-              mMatch = i.date >= state.filter.customRange.start && i.date <= state.filter.customRange.end;
-            } else if (state.filter.month) {
-              mMatch = i.date.startsWith(state.filter.month);
-            }
-            const cMatch = !state.filter.cat || i.category === state.filter.cat;
-            const tMatch = !state.filter.type || i.type === state.filter.type;
-            return qMatch && mMatch && cMatch && tMatch;
+            const qm = (i.item + i.note).toLowerCase().includes(state.filter.q.toLowerCase());
+            let mm = state.filter.customRange ? (i.date >= state.filter.customRange.start && i.date <= state.filter.customRange.end) : (state.filter.month ? i.date.startsWith(state.filter.month) : true);
+            return qm && mm && (!state.filter.cat || i.category === state.filter.cat) && (!state.filter.type || i.type === state.filter.type);
           });
-          return res.sort((a, b) => {
-            let mod = state.sortDesc ? -1 : 1;
-            if (a[state.sortKey] !== b[state.sortKey]) return a[state.sortKey] > b[state.sortKey] ? mod : -mod;
-            return (a.row - b.row) * mod;
-          });
+          return res.sort((a, b) => { let m = state.sortDesc ? -1 : 1; return a[state.sortKey] !== b[state.sortKey] ? (a[state.sortKey] > b[state.sortKey] ? m : -m) : (a.row - b.row) * m; });
         });
-
         const displayItems = computed(() => filteredItems.value.slice(0, state.displayLimit));
-
-        const isAllSelected = computed(() => {
-          return displayItems.value.length > 0 && state.selectedRows.length === displayItems.value.length;
-        });
-
+        const isAllSelected = computed(() => displayItems.value.length > 0 && state.selectedRows.length === displayItems.value.length);
+        const modalTitle = computed(() => state.modalMode === 'range' ? '📅 設定查詢期間' : (state.modalMode === 'budget' ? '💰 設定每月預算' : (state.modalMode === 'add' ? '🖊️ 記一筆' : '📝 修改帳務')));
+        const modalCatOptions = computed(() => { if (!state.configCats) return []; const raw = state.form.type === '收入' ? state.configCats.income : state.configCats.expense; return raw ? raw.split(',').map(c => c.trim()) : []; });
         const availableMonths = computed(() => [...new Set(items.value.map(i => i.date.slice(0, 7)))].sort().reverse());
         const availableCats = computed(() => [...new Set(items.value.map(i => i.category))]);
-
         const groupedCats = computed(() => {
-          const used = { expense: new Set(), income: new Set() };
-          items.value.forEach(i => {
-            if (!i.category) return;
-            if (i.type === '收入') used.income.add(i.category);
-            else used.expense.add(i.category);
-          });
-
-          if (!state.configCats) return { expense: [...used.expense].sort(), income: [...used.income].sort() };
-
-          const sortFn = (set, configStr) => {
-            const list = configStr ? configStr.split(',').map(c => c.trim()) : [];
-            const sorted = [];
-            list.forEach(c => { if (set.has(c)) sorted.push(c); });
-            const remaining = [...set].filter(c => !sorted.includes(c)).sort();
-            return [...sorted, ...remaining];
-          };
-
-          return {
-            expense: sortFn(used.expense, state.configCats.expense),
-            income: sortFn(used.income, state.configCats.income)
-          };
+          const u = { expense: new Set(), income: new Set() }; items.value.forEach(i => { if (i.category) { if (i.type === '收入') u.income.add(i.category); else u.expense.add(i.category); } });
+          const s = (set, str) => { const l = str ? str.split(',').map(c => c.trim()) : []; const r = []; l.forEach(c => { if (set.has(c)) r.push(c); }); return [...r, ...[...set].filter(c => !r.includes(c)).sort()]; };
+          return { expense: s(u.expense, state.configCats?.expense), income: s(u.income, state.configCats?.income) };
         });
-        const hasActiveFilter = computed(() => {
-          const currentMonth = new Date().toISOString().slice(0, 7);
-          return state.filter.q !== '' || state.filter.cat !== '' || state.filter.type !== '' || state.filter.month !== currentMonth;
-        });
-
+        const hasActiveFilter = computed(() => state.filter.q !== '' || state.filter.cat !== '' || state.filter.type !== '' || state.filter.month !== new Date().toISOString().slice(0, 7));
         const trendChartWidth = computed(() => {
           const count = availableMonths.value.length;
           return count > 8 ? (count * 50) + 'px' : '100%';
         });
-
         const hasMoreItems = computed(() => state.displayLimit < filteredItems.value.length);
         const totalIncome = computed(() => filteredItems.value.filter(i => i.type === '收入').reduce((a, b) => a + b.amount, 0));
         const totalExpense = computed(() => filteredItems.value.filter(i => i.type === '支出').reduce((a, b) => a + b.amount, 0));
         const totalBalance = computed(() => totalIncome.value - totalExpense.value);
+        const curExp = computed(() => { const m = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'); return items.value.filter(i => i.date.startsWith(m) && i.type === '支出').reduce((a, b) => a + b.amount, 0); });
+        const budgetPercent = computed(() => state.monthlyBudget > 0 ? (curExp.value / state.monthlyBudget) * 100 : 0);
+        const budgetColor = computed(() => budgetPercent.value < 50 ? 'var(--income)' : (budgetPercent.value < 80 ? '#E0BE89' : 'var(--expense)'));
 
-        const currentMonthExpense = computed(() => {
-          const now = new Date();
-          const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-          return items.value
-            .filter(i => i.date.startsWith(currentMonth) && i.type === '支出')
-            .reduce((a, b) => a + b.amount, 0);
-        });
-
-        const budgetPercent = computed(() => state.monthlyBudget > 0 ? (currentMonthExpense.value / state.monthlyBudget) * 100 : 0);
-        const budgetColor = computed(() => {
-          if (budgetPercent.value < 50) return 'var(--income)';
-          if (budgetPercent.value < 80) return '#E0BE89';
-          return 'var(--expense)';
-        });
-
-        // Watchers
-        watch(() => state.filter, (n) => {
-          if (n.month === 'custom') {
-            openModal('range');
-            return;
-          }
-          if (typeof n.month === 'string' && n.month !== 'custom' && state.filter.customRange) {
-            state.filter.customRange = null;
-            state.filter.customRangeText = '';
-          }
-          state.displayLimit = 30;
-          state.selectedRows = [];
-          renderCharts();
-        }, { deep: true });
-
+        watch(() => state.filter, (n) => { if (n.month === 'custom') { openModal('range'); return; } if (typeof n.month === 'string' && n.month !== 'custom' && state.filter.customRange) { state.filter.customRange = null; state.filter.customRangeText = ''; } state.displayLimit = 30; state.selectedRows = []; renderCharts(); }, { deep: true });
         watch(() => state.displayLimit, () => { state.selectedRows = []; });
         watch(() => state.activeData, () => { renderCharts(); }, { deep: true });
         watch(() => state.archiveData, () => { renderCharts(); }, { deep: true });
@@ -1679,472 +1903,30 @@
         watch(() => state.batchMode, (n) => { if (!n) state.selectedRows = []; });
 
         onMounted(() => {
-          window.addEventListener('scroll', infiniteScroll);
-          initGasUrl();
-
-          const savedTheme = localStorage.getItem('ahmo_theme') || 'default';
-          setTheme(savedTheme);
-
-          state.isProcessing = true;
-          apiCall('getData', null, res => {
-            state.isProcessing = false;
-            if (res) {
-              if (res.config) {
-                state.fullConfig = JSON.parse(JSON.stringify(res.config));
-                state.configCats = res.categories || { expense: res.config.EXPENSE_CATS, income: res.config.INCOME_CATS };
-                if (res.config.APP_TITLE) state.appTitle = res.config.APP_TITLE;
-                if (res.config.MONTHLY_BUDGET) state.monthlyBudget = Number(res.config.MONTHLY_BUDGET);
-
-                if (res.config.LINE_QUICK_REPLY) {
-                  state.quickReplyList = res.config.LINE_QUICK_REPLY.split(/[|\n]/).map(pair => {
-                    const p = pair.split(/[:：]/);
-                    return { label: p[0]?.trim() || '', text: p[1]?.trim() || '' };
-                  }).filter(i => i.label);
-                } else {
-                  state.quickReplyList = [];
-                }
-              }
-              if (res.activeData) {
-                state.activeData = res.activeData;
-                localStorage.setItem('ahmo_cache', JSON.stringify(res.activeData));
-              }
-              if (res.archiveData) state.archiveData = res.archiveData;
-              if (res.recurData) {
-                state.recurData = res.recurData.map(r => ({ ...r, 啟用: r.啟用 === true || r.啟用 === 'TRUE' || r.啟用 === 1 }));
-              }
-              if (res.sheetUrl) state.sheetUrl = res.sheetUrl;
+          window.addEventListener('scroll', infiniteScroll); initGasUrl(); setTheme(localStorage.getItem('ahmo_theme') || 'default');
+          state.isProcessing = true; apiCall('getData', null, res => {
+            state.isProcessing = false; if (!res) return;
+            if (res.config) {
+              state.fullConfig = res.config; state.configCats = res.categories || { expense: res.config.EXPENSE_CATS, income: res.config.INCOME_CATS };
+              if (res.config.APP_TITLE) state.appTitle = res.config.APP_TITLE; if (res.config.MONTHLY_BUDGET) state.monthlyBudget = Number(res.config.MONTHLY_BUDGET);
+              state.quickReplyList = res.config.LINE_QUICK_REPLY ? res.config.LINE_QUICK_REPLY.split(/[|\n]/).map(p => { const x = p.split(/[:：]/); return { label: x[0]?.trim() || '', text: x[1]?.trim() || '' }; }).filter(i => i.label) : [];
             }
-            nextTick(() => renderCharts());
-          }, e => {
-            state.isProcessing = false;
-            const cached = localStorage.getItem('ahmo_cache');
-            if (cached) { try { state.activeData = JSON.parse(cached); } catch (ex) { } }
-
-            if (state.gasUrl) {
-              showToast('連線失敗：請檢查設定網址或網路狀況', 'error');
-            } else {
-              state.showSettings = true;
-            }
-            renderCharts();
-          });
+            if (res.activeData) { state.activeData = res.activeData; localStorage.setItem('ahmo_cache', JSON.stringify(res.activeData)); }
+            if (res.archiveData) state.archiveData = res.archiveData;
+            if (res.recurData) state.recurData = res.recurData.map(r => ({ ...r, 啟用: [true, 'TRUE', 1].includes(r.啟用) }));
+            if (res.sheetUrl) state.sheetUrl = res.sheetUrl; nextTick(() => renderCharts());
+          }, () => { state.isProcessing = false; const c = localStorage.getItem('ahmo_cache'); if (c) state.activeData = JSON.parse(c); if (!state.gasUrl) state.showSettings = true; renderCharts(); });
         });
-
         onBeforeUnmount(() => { window.removeEventListener('scroll', infiniteScroll); });
-        const apiCall = async (method, params, success, failure) => {
-          if (state.gasUrl && !window.google?.script?.run) {
-            try {
-              const url = new URL(state.gasUrl);
-              const isGet = (method === 'getData' || method === 'getCategoryConfig' || method === 'fetchActiveData' || method === 'fetchArchiveData');
-              if (isGet) url.searchParams.append('action', method);
-
-              const options = {
-                method: isGet ? 'GET' : 'POST',
-                redirect: 'follow',
-                mode: 'cors'
-              };
-
-              if (!isGet) {
-                options.body = JSON.stringify({ action: method, params: params || [] });
-                options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
-              }
-
-              const resp = await fetch(url.toString(), options);
-              if (!resp.ok) throw new Error('HTTP Status ' + resp.status);
-              const res = await resp.json();
-              if (success) success(res);
-            } catch (e) {
-              console.error('API Error:', e);
-              if (failure) failure(e); else showToast('連線失敗: ' + e.message, 'error');
-            }
-          } else if (window.google?.script?.run) {
-            let r = google.script.run;
-            if (success) r = r.withSuccessHandler(success);
-            if (failure) r = r.withFailureHandler(failure);
-            r[method](...(params || []));
-          } else {
-            if (method !== 'getData') {
-              state.showSettings = true;
-              showToast('請先設定連結網址', 'error');
-            }
-            if (failure) failure('No URL');
-          }
-        };
-
-        const initGasUrl = () => {
-          const p = new URLSearchParams(window.location.search);
-          const c = p.get('config');
-          if (c) {
-            try {
-              const d = atob(c);
-              localStorage.setItem('ahmo_gas_url', d);
-              state.gasUrl = d;
-              window.history.replaceState({}, document.title, window.location.pathname);
-            } catch (ex) { }
-          } else {
-            state.gasUrl = localStorage.getItem('ahmo_gas_url') || DEFAULT_GAS_URL;
-          }
-          state.tempGasUrl = state.gasUrl;
-        };
-
-        const saveFullConfig = () => {
-          let url = state.tempGasUrl.trim();
-          if (!url) { showToast('GAS 網址不可為空', 'error'); return; }
-
-          state.isProcessing = true;
-          const oldUrl = localStorage.getItem('ahmo_gas_url');
-          if (url !== oldUrl) {
-            localStorage.setItem('ahmo_gas_url', url);
-            state.gasUrl = url;
-          }
-
-          state.fullConfig.LINE_QUICK_REPLY = state.quickReplyList
-            .filter(i => i.label.trim())
-            .map(i => `${i.label.trim()}:${(i.text || i.label).trim()}`)
-            .join('|');
-
-          const cleanRecurData = state.recurData.map(r => ({
-            ...r,
-            項目: r.項目 || '未命名項目',
-            啟用: r.啟用 ? 'TRUE' : 'FALSE'
-          }));
-
-          apiCall('saveAllSettings', [{ config: state.fullConfig, recur: cleanRecurData }], res => {
-            if (res) {
-              localStorage.removeItem('ahmo_cache');
-              showToast('雲端設定已同步，立即生效');
-              state.showSettings = false;
-              location.reload();
-            } else {
-              showToast('同步失敗，請檢查權限', 'error');
-            }
-          }, err => {
-            state.isProcessing = false;
-            showToast('儲存失敗：' + err, 'error');
-          });
-        };
-
-        const initSystem = () => {
-          if (!confirm('將自動建立必要工作表與設定自動排程，確定嗎？')) return;
-          state.isProcessing = true;
-          apiCall('runSystemInit', [], res => {
-            state.isProcessing = false;
-            if (res) showToast(res);
-            else showToast('初始化失敗');
-          });
-        };
-
-        const addQuickReply = () => { state.quickReplyList.push({ label: '', text: '' }); };
-
-        const clearSettings = () => {
-          if (!confirm('將清除本地儲存的連線網址，確定嗎？')) return;
-          localStorage.removeItem('ahmo_cache');
-          localStorage.removeItem('ahmo_gas_url');
-          location.reload();
-        };
-
-        const addRecurItem = () => {
-          state.recurData.unshift({
-            頻率: '每月', 日期: '1', 項目: '新規則', 金額: 0, 類別: '', 備註: '', 啟用: true
-          });
-        };
-
-        const removeRecurItem = (idx) => {
-          if (confirm('確定移除此規則？')) {
-            state.recurData.splice(idx, 1);
-          }
-        };
-
-        const generateShareLink = async () => {
-          if (!state.gasUrl) { showToast('請先儲存 GAS 網址', 'error'); return; }
-          const encoded = btoa(state.gasUrl);
-          state.shareUrl = `${window.location.origin}${window.location.pathname}?config=${encoded}`;
-          try {
-            const fd = new FormData(); fd.append('url', state.shareUrl);
-            const resp = await fetch('https://cleanuri.com/api/v1/shorten', { method: 'POST', body: fd });
-            const res = await resp.json(); if (res.result_url) state.shortUrl = res.result_url;
-          } catch (e) { }
-          showToast("分享連結已產生");
-        };
-
-        const copyToClipboard = (text) => {
-          navigator.clipboard.writeText(text).then(() => {
-            showToast('連結已複製到剪貼簿');
-          }).catch(() => {
-            showToast('複製失敗', 'error');
-          });
-        };
-
-        const toggleArchive = () => {
-          state.useArchive = !state.useArchive;
-          if (state.useArchive && state.archiveData.length === 0) {
-            state.isProcessing = true;
-            apiCall('fetchArchiveData', null, res => {
-              state.archiveData = res;
-              state.isProcessing = false;
-              renderCharts();
-            }, e => {
-              state.isProcessing = false;
-              showToast('歷史資料載入失敗', 'error');
-            });
-          }
-        };
-
-        const refreshActiveData = (isBackground = false) => {
-          if (!isBackground) state.isProcessing = true;
-          apiCall('fetchActiveData', null, res => {
-            if (res && res.error) {
-              if (!isBackground) showToast('後端報錯：' + res.error, 'error');
-              state.isProcessing = false;
-              return;
-            }
-            state.activeData = res;
-            state.isProcessing = false;
-            localStorage.setItem('ahmo_cache', JSON.stringify(res));
-            renderCharts();
-            if (!isBackground) showToast('資料已更新');
-          }, e => {
-            state.isProcessing = false;
-            if (!isBackground) showToast('連線失敗', 'error');
-          });
-        };
-
-        const resetFilters = () => {
-          state.filter = { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' };
-        };
-
-        const formatMoney = (v) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(v);
-
-        const highlight = (text) => {
-          if (!text || !state.filter.q.trim()) return text;
-          const regex = new RegExp(`(${state.filter.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-          return text.replace(regex, '<span class="search-highlight">$1</span>');
-        };
-
-        const sortBy = (k) => {
-          if (state.sortKey === k) state.sortDesc = !state.sortDesc;
-          else { state.sortKey = k; state.sortDesc = true; }
-        };
-
-        const getSortIcon = (k) => {
-          if (state.sortKey !== k) return 'fas fa-sort';
-          return state.sortDesc ? 'fas fa-sort-down' : 'fas fa-sort-up';
-        };
-
-        const getIcon = (cat) => {
-          if (!cat) return '🏷️';
-          if (state.iconCache[cat]) return state.iconCache[cat];
-          const c = String(cat);
-          let icon = '✨';
-          if (c.match(/薪|工資|酬/)) icon = '💰';
-          else if (c.match(/獎|紅包|禮金/)) icon = '🧧';
-          else if (c.match(/投|資|股|匯|利息/)) icon = '📈';
-          else if (c.match(/回饋|退|折|補貼/)) icon = '💸';
-          else if (c.match(/育兒|嬰|童|寶|尿布|奶/)) icon = '👶';
-          else if (c.match(/捐|佛|廟|神|奉|獻|公德/)) icon = '🙏';
-          else if (c.match(/旅|宿|飛|機票|遊/)) icon = '✈️';
-          else if (c.match(/醫|藥|病|診|牙|健/)) icon = '🏥';
-          else if (c.match(/贈|禮|送|客/)) icon = '🎁';
-          else if (c.match(/學|書|課|補|讀|教/)) icon = '📖';
-          else if (c.match(/訂閱|會員|月費/)) icon = '💳';
-          else if (c.match(/食|餐|飲|吃|喝|酒|午|晚|早/)) icon = '🍚';
-          else if (c.match(/衣|服|鞋|包|飾|妝/)) icon = '👚';
-          else if (c.match(/住|房|水|電|氣|網|租/)) icon = '🏠';
-          else if (c.match(/行|車|油|運|票|交通|捷|鐵/)) icon = '🚗';
-          else if (c.match(/樂|玩|影|音|唱|戲|休閒/)) icon = '🎮';
-          else if (c.match(/購|買|日用|貨|商|超商/)) icon = '🛍️';
-          else if (c.match(/稅|費|轉帳|匯/)) icon = '📄';
-          state.iconCache[cat] = icon;
-          return icon;
-        };
-
-        const openModal = (mode, item = null) => {
-          state.modalMode = mode;
-          if (mode === 'add') {
-            state.form = { date: new Date().toISOString().slice(0, 10), type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' };
-          } else if (mode === 'edit') {
-            Object.assign(state.form, item);
-          } else if (mode === 'range') {
-            state.rangeForm = { start: new Date().toISOString().slice(0, 10), end: new Date().toISOString().slice(0, 10) };
-          } else if (mode === 'budget') {
-            state.form.amount = state.monthlyBudget;
-          }
-          state.showModal = true;
-        };
-
-        const submitForm = () => {
-          if (state.modalMode === 'range') {
-            if (state.rangeForm.start > state.rangeForm.end) { showToast('日期區間錯誤', 'error'); return; }
-            state.filter.customRange = { start: state.rangeForm.start, end: state.rangeForm.end };
-            state.filter.customRangeText = `${state.rangeForm.start.slice(5)}~${state.rangeForm.end.slice(5)}`;
-            state.filter.month = state.filter.customRange;
-            state.showModal = false;
-            return;
-          }
-          if (state.modalMode === 'budget') {
-            const newBudget = Number(state.form.amount);
-            if (!newBudget || newBudget < 0) { showToast('金額無效', 'error'); return; }
-            state.isProcessing = true;
-            apiCall('updateBudget', [newBudget], res => {
-              state.isProcessing = false;
-              state.monthlyBudget = newBudget;
-              showToast('標預算已更新');
-              state.showModal = false;
-            });
-            return;
-          }
-          state.isProcessing = true;
-          const data = [state.form.date, state.form.type, state.form.category, state.form.item, state.form.amount, state.form.note];
-          const done = () => { refreshActiveData(); state.showModal = false; showToast('成功'); };
-          const fail = (e) => { state.isProcessing = false; showToast('存檔失敗', 'error'); };
-          if (state.modalMode === 'add') apiCall('addData', [data], done, fail);
-          else apiCall('updateData', [state.form.row, data, state.form.sheet], done, fail);
-        };
-
-        const deleteRow = (item) => {
-          if (confirm(`確定刪除？`)) {
-            state.isProcessing = true;
-            apiCall('deleteData', [item.row, item.sheet], () => {
-              refreshActiveData();
-              showToast('已刪除');
-              state.selectedRows = state.selectedRows.filter(r => r.row !== item.row || r.sheet !== item.sheet);
-            }, e => {
-              state.isProcessing = false;
-              showToast('刪除失敗', 'error');
-            });
-          }
-        };
-
-        const isSelected = (item) => state.selectedRows.some(r => r.row === item.row && r.sheet === item.sheet);
-
-        const toggleSelectAll = () => {
-          if (isAllSelected.value) {
-            state.selectedRows = [];
-          } else {
-            state.selectedRows = [...displayItems.value];
-          }
-        };
-
-        const batchDelete = () => {
-          if (state.selectedRows.length === 0) return;
-          if (confirm(`確定批次刪除 ${state.selectedRows.length} 筆帳目？`)) {
-            state.isProcessing = true;
-            const items = state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet }));
-            apiCall('batchDeleteData', [items], () => {
-              refreshActiveData();
-              state.selectedRows = [];
-              showToast(`已批次刪除 ${items.length} 筆`);
-            }, e => {
-              state.isProcessing = false;
-              showToast('批次刪除失敗', 'error');
-            });
-          }
-        };
-
-        const batchChangeCat = () => {
-          if (state.selectedRows.length === 0) return;
-          const newCat = prompt("請輸入欲批次更改的分類名稱：");
-          if (newCat && newCat.trim()) {
-            state.isProcessing = true;
-            const items = state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet }));
-            apiCall('batchUpdateCategory', [items, newCat.trim()], () => {
-              refreshActiveData();
-              state.selectedRows = [];
-              showToast(`已批次更新 ${items.length} 筆分類`);
-            }, e => {
-              state.isProcessing = false;
-              showToast('更新失敗', 'error');
-            });
-          }
-        };
-
-        const infiniteScroll = () => {
-          if (state._scrollLocked) return;
-          state._scrollLocked = true;
-          requestAnimationFrame(() => {
-            let threshold = 200;
-            let bottomOfWindow = document.documentElement.scrollTop + window.innerHeight >= document.documentElement.offsetHeight - threshold;
-            if (bottomOfWindow && hasMoreItems.value) {
-              state.displayLimit += 50;
-            }
-            state._scrollLocked = false;
-          });
-        };
-
-        const renderCharts = () => {
-          if (state._chartDebounce) clearTimeout(state._chartDebounce);
-          state._chartDebounce = setTimeout(() => {
-            nextTick(() => {
-              const ctxCat = document.getElementById('chartCat');
-              const ctxTrend = document.getElementById('chartTrend');
-              if (!ctxCat || !ctxTrend || items.value.length === 0) return;
-              const typeToShow = state.filter.type === '收入' ? '收入' : '支出';
-              const t = themes[state.currentThemeKey];
-              const palette = typeToShow === '收入' ? [t.chartInc, '#81C784', '#A5D6A7'] : [t.primary, '#9FA8DA', '#B39DDB'];
-              const catMap = {};
-              filteredItems.value.filter(i => i.type === typeToShow).forEach(i => { catMap[i.category] = (catMap[i.category] || 0) + i.amount; });
-              if (state.charts.cat) state.charts.cat.destroy();
-              state.charts.cat = new Chart(ctxCat, {
-                type: 'doughnut',
-                data: { labels: Object.keys(catMap), datasets: [{ data: Object.values(catMap), backgroundColor: palette }] },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  onClick: (e, el) => {
-                    if (el.length > 0) state.filter.cat = state.charts.cat.data.labels[el[0].index];
-                  },
-                  plugins: { legend: { position: 'bottom' } }
-                }
-              });
-              const months = [...new Set(items.value.map(i => i.date.slice(0, 7)))].sort();
-              const inc = months.map(m => items.value.filter(i => i.date.startsWith(m) && i.type === '收入').reduce((a, b) => a + b.amount, 0));
-              const exp = months.map(m => items.value.filter(i => i.date.startsWith(m) && i.type === '支出').reduce((a, b) => a + b.amount, 0));
-              if (state.charts.trend) state.charts.trend.destroy();
-              state.charts.trend = new Chart(ctxTrend, {
-                type: 'bar',
-                data: {
-                  labels: months.map(m => m.split('-')[1] + '月'),
-                  datasets: [
-                    { label: '收入', data: inc, backgroundColor: t.chartInc },
-                    { label: '支出', data: exp, backgroundColor: t.chartExp }
-                  ]
-                },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  onClick: (e, el) => {
-                    if (el.length > 0) {
-                      state.filter.month = months[el[0].index];
-                      state.filter.type = el[0].datasetIndex === 0 ? '收入' : '支出';
-                    } else {
-                      const points = state.charts.trend.getElementsAtEventForMode(e, 'index', { intersect: false }, true);
-                      if (points.length > 0) {
-                        state.filter.month = months[points[0].index];
-                        state.filter.type = '';
-                      }
-                    }
-                  }
-                }
-              });
-            });
-          }, 300);
-        };
-
-        const openSheet = () => {
-          window.open(state.sheetUrl || '#', '_blank');
-        };
 
         return {
-          ...toRefs(state),
-          modalTitle, modalCatOptions, allData, displayItems, isAllSelected, items,
-          availableMonths, availableCats, groupedCats, hasActiveFilter, trendChartWidth,
-          filteredItems, hasMoreItems, totalIncome, totalExpense, totalBalance,
-          currentMonthExpense, budgetPercent, budgetColor,
-          showToast, setTheme, apiCall, initGasUrl, saveFullConfig, initSystem,
-          addQuickReply, clearSettings, addRecurItem, removeRecurItem, generateShareLink,
-          copyToClipboard, toggleArchive, refreshActiveData, resetFilters, formatMoney,
-          highlight, sortBy, getSortIcon, getIcon, openModal, submitForm, deleteRow,
-          isSelected, toggleSelectAll, batchDelete, batchChangeCat, infiniteScroll,
-          renderCharts, openSheet
+          ...toRefs(state), modalTitle, modalCatOptions, allData, items, filteredItems, displayItems, isAllSelected,
+          availableMonths, availableCats, groupedCats, hasActiveFilter, trendChartWidth, hasMoreItems,
+          totalIncome, totalExpense, totalBalance, currentMonthExpense: curExp, budgetPercent, budgetColor,
+          showToast, setTheme, apiCall, initGasUrl, saveFullConfig, initSystem, addQuickReply, clearSettings,
+          addRecurItem, removeRecurItem, generateShareLink, copyToClipboard, toggleArchive, refreshActiveData,
+          resetFilters, formatMoney, highlight: highlightText, sortBy, getSortIcon, getIcon, openModal, submitForm,
+          deleteRow, isSelected, toggleSelectAll, infiniteScroll, renderCharts, openSheet
         };
       }
     }).mount('#app');
