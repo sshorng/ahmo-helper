@@ -1478,7 +1478,7 @@
                   <i :class="item.啟用 ? 'fas fa-toggle-on' : 'fas fa-toggle-off'" @click="item.啟用 = !item.啟用"
                     :title="item.啟用 ? '已啟用' : '已停用'"
                     :style="{ color: item.啟用 ? 'var(--primary)' : '#ccc', fontSize: '1.6rem', cursor: 'pointer', transition: '0.2s' }"></i>
-                  <i class="fas fa-trash-alt" @click="removeRecurItem(qidx)"
+                  <i class="fas fa-trash-alt" @click="removeRecurItem(idx)"
                     style="color:#ff6b6b; cursor:pointer; opacity:0.6; font-size:1.1rem;"></i>
                 </div>
               </div>
