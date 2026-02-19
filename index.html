@@ -1588,6 +1588,7 @@
           activeData: initialDataFromServer, archiveData: [], useArchive: false, isProcessing: false,
           recurData: [], monthlyBudget: initialBudget, appTitle: initialAppTitle,
           filter: { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' },
+          debouncedQuery: '', // 新增：防抖搜尋字串
           sortKey: 'date', sortDesc: true, showModal: false, modalMode: 'add', showThemeMenu: false, currentThemeKey: 'default',
           showSettings: false, settingsTab: 'general', showAdvModel: false, fullConfig: {}, quickReplyList: [], configCats: null,
           displayLimit: 30, form: { date: '', type: '支出', category: '', item: '', amount: '', note: '', row: null, sheet: '工作表1' },
@@ -1720,8 +1721,8 @@
           };
           const formatMoney = (v) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(v);
           const highlightText = (text) => {
-            if (!text || !state.filter.q.trim()) return text;
-            const regex = new RegExp(`(${state.filter.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            if (!text || !state.debouncedQuery.trim()) return text;
+            const regex = new RegExp(`(${state.debouncedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
             return text.replace(regex, '<span class="search-highlight">$1</span>');
           };
           const getIcon = (cat) => {
@@ -1865,7 +1866,7 @@
         const items = computed(() => (allData.value || []).map(r => ({ date: r[0], type: r[1], category: r[2], item: r[3], amount: Number(String(r[4] || 0).replace(/,/g, '')), note: r[5], row: r[6], sheet: r[7] })));
         const filteredItems = computed(() => {
           let res = items.value.filter(i => {
-            const qm = (i.item + i.note).toLowerCase().includes(state.filter.q.toLowerCase());
+            const qm = (i.item + i.note).toLowerCase().includes(state.debouncedQuery.toLowerCase());
             let mm = state.filter.customRange ? (i.date >= state.filter.customRange.start && i.date <= state.filter.customRange.end) : (state.filter.month ? i.date.startsWith(state.filter.month) : true);
             return qm && mm && (!state.filter.cat || i.category === state.filter.cat) && (!state.filter.type || i.type === state.filter.type);
           });
@@ -1901,6 +1902,11 @@
         watch(() => state.archiveData, () => { renderCharts(); }, { deep: true });
         watch(() => state.appTitle, (n) => { document.title = n; });
         watch(() => state.batchMode, (n) => { if (!n) state.selectedRows = []; });
+
+        watch(() => state.filter.q, (newVal) => {
+          if (state._debounceTimer) clearTimeout(state._debounceTimer);
+          state._debounceTimer = setTimeout(() => { state.debouncedQuery = newVal; state.displayLimit = 30; }, 300);
+        });
 
         onMounted(() => {
           window.addEventListener('scroll', infiniteScroll); initGasUrl(); setTheme(localStorage.getItem('ahmo_theme') || 'default');
