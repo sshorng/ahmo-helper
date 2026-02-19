@@ -147,22 +147,7 @@
       margin-bottom: 15px;
     }
 
-    .search-input-wrap {
-      flex: 2 1 200px;
-      min-width: 0;
-    }
 
-    .select-input-wrap {
-      flex: 1 1 90px;
-      min-width: 0;
-    }
-
-    .control-btns {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-left: auto;
-    }
 
     input,
     select,
@@ -655,15 +640,7 @@
       gap: 10px;
     }
 
-    .btn {
-      padding: 10px 20px;
-      border-radius: 10px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.2s;
-      border: 1px solid transparent;
-    }
+    /* .btn 基礎樣式 - 見統一按鈕系統區塊 */
 
     .btn-ghost {
       background: #f5f5f5;
@@ -959,10 +936,6 @@
     .btn.outline:hover {
       background: var(--highlight) !important;
       box-shadow: 0 4px 12px rgba(123, 102, 153, 0.15);
-    }
-
-    .btn:active {
-      transform: scale(0.97);
     }
 
     .btn:active {
@@ -1750,8 +1723,15 @@
                 if (state.charts.cat) state.charts.cat.destroy();
                 state.charts.cat = new Chart(ctxCat, { type: 'doughnut', data: { labels: Object.keys(catMap), datasets: [{ data: Object.values(catMap), backgroundColor: typeToShow === '收入' ? [t.chartInc, '#81C784', '#A5D6A7'] : [t.primary, '#9FA8DA', '#B39DDB'] }] }, options: { responsive: true, maintainAspectRatio: false, onClick: (e, el) => { if (el.length > 0) state.filter.cat = state.charts.cat.data.labels[el[0].index]; }, plugins: { legend: { position: 'bottom' } } } });
                 const months = [...new Set(items.value.map(i => i.date.slice(0, 7)))].sort();
+                // O(n) 預計算月份收支 Map
+                const monthIncMap = {}, monthExpMap = {};
+                items.value.forEach(i => {
+                  const m = i.date.slice(0, 7);
+                  if (i.type === '收入') monthIncMap[m] = (monthIncMap[m] || 0) + i.amount;
+                  else if (i.type === '支出') monthExpMap[m] = (monthExpMap[m] || 0) + i.amount;
+                });
                 if (state.charts.trend) state.charts.trend.destroy();
-                state.charts.trend = new Chart(ctxTrend, { type: 'bar', data: { labels: months.map(m => m.split('-')[1] + '月'), datasets: [{ label: '收入', data: months.map(m => items.value.filter(i => i.date.startsWith(m) && i.type === '收入').reduce((a, b) => a + b.amount, 0)), backgroundColor: t.chartInc }, { label: '支出', data: months.map(m => items.value.filter(i => i.date.startsWith(m) && i.type === '支出').reduce((a, b) => a + b.amount, 0)), backgroundColor: t.chartExp }] }, options: { responsive: true, maintainAspectRatio: false, onClick: (e, el) => { if (el.length > 0) { state.filter.month = months[el[0].index]; state.filter.type = el[0].datasetIndex === 0 ? '收入' : '支出'; } else { const pt = state.charts.trend.getElementsAtEventForMode(e, 'index', { intersect: false }, true); if (pt.length > 0) { state.filter.month = months[pt[0].index]; state.filter.type = ''; } } } } });
+                state.charts.trend = new Chart(ctxTrend, { type: 'bar', data: { labels: months.map(m => m.split('-')[1] + '月'), datasets: [{ label: '收入', data: months.map(m => monthIncMap[m] || 0), backgroundColor: t.chartInc }, { label: '支出', data: months.map(m => monthExpMap[m] || 0), backgroundColor: t.chartExp }] }, options: { responsive: true, maintainAspectRatio: false, onClick: (e, el) => { if (el.length > 0) { state.filter.month = months[el[0].index]; state.filter.type = el[0].datasetIndex === 0 ? '收入' : '支出'; } else { const pt = state.charts.trend.getElementsAtEventForMode(e, 'index', { intersect: false }, true); if (pt.length > 0) { state.filter.month = months[pt[0].index]; state.filter.type = ''; } } } } });
               });
             }, 300);
           };
@@ -1829,7 +1809,7 @@
         };
         const sortBy = (k) => { if (state.sortKey === k) state.sortDesc = !state.sortDesc; else { state.sortKey = k; state.sortDesc = true; } };
         const getSortIcon = (k) => state.sortKey !== k ? 'fas fa-sort' : (state.sortDesc ? 'fas fa-sort-down' : 'fas fa-sort-up');
-        const isSelected = (item) => state.selectedRows.some(r => r.row === item.row && r.sheet === item.sheet);
+        const isSelected = (item) => selectedSet.value.has(item.row + '|' + item.sheet);
         const toggleSelectAll = () => { state.selectedRows = isAllSelected.value ? [] : [...displayItems.value]; };
         const saveFullConfig = () => {
           if (!state.tempGasUrl.trim()) { showToast('GAS 網址不可為空', 'error'); return; }
@@ -1857,7 +1837,7 @@
             頻率: '每月', 日期: '1', 項目: '新規則', 金額: 0, 類別: '', 備註: '', 啟用: true
           });
         };
-        const removeRecurItem = (idx) => { if (confirm('確定移除？')) state.recurData.splice(idx, 1); };
+        const removeRecurItem = async (idx) => { if (await sysConfirm('確定移除此週期規則？', '移除確認', true)) state.recurData.splice(idx, 1); };;
         const openSheet = () => window.open(state.sheetUrl || '#', '_blank');
         const resetFilters = () => { state.filter = { q: '', month: new Date().toISOString().slice(0, 7), cat: '', type: '', customRange: null, customRangeText: '' }; };
 
@@ -1865,14 +1845,24 @@
         const allData = computed(() => state.useArchive ? [...state.activeData, ...state.archiveData] : state.activeData);
         const items = computed(() => (allData.value || []).map(r => ({ date: r[0], type: r[1], category: r[2], item: r[3], amount: Number(String(r[4] || 0).replace(/,/g, '')), note: r[5], row: r[6], sheet: r[7] })));
         const filteredItems = computed(() => {
+          let inc = 0, exp = 0;
           let res = items.value.filter(i => {
             const qm = (i.item + i.note).toLowerCase().includes(state.debouncedQuery.toLowerCase());
             let mm = state.filter.customRange ? (i.date >= state.filter.customRange.start && i.date <= state.filter.customRange.end) : (state.filter.month ? i.date.startsWith(state.filter.month) : true);
-            return qm && mm && (!state.filter.cat || i.category === state.filter.cat) && (!state.filter.type || i.type === state.filter.type);
+            const pass = qm && mm && (!state.filter.cat || i.category === state.filter.cat) && (!state.filter.type || i.type === state.filter.type);
+            if (pass) { if (i.type === '收入') inc += i.amount; else if (i.type === '支出') exp += i.amount; }
+            return pass;
           });
+          state._filteredIncome = inc;
+          state._filteredExpense = exp;
           return res.sort((a, b) => { let m = state.sortDesc ? -1 : 1; return a[state.sortKey] !== b[state.sortKey] ? (a[state.sortKey] > b[state.sortKey] ? m : -m) : (a.row - b.row) * m; });
         });
         const displayItems = computed(() => filteredItems.value.slice(0, state.displayLimit));
+        const selectedSet = computed(() => {
+          const s = new Set();
+          state.selectedRows.forEach(r => s.add(r.row + '|' + r.sheet));
+          return s;
+        });
         const isAllSelected = computed(() => displayItems.value.length > 0 && state.selectedRows.length === displayItems.value.length);
         const modalTitle = computed(() => state.modalMode === 'range' ? '📅 設定查詢期間' : (state.modalMode === 'budget' ? '💰 設定每月預算' : (state.modalMode === 'add' ? '🖊️ 記一筆' : '📝 修改帳務')));
         const modalCatOptions = computed(() => { if (!state.configCats) return []; const raw = state.form.type === '收入' ? state.configCats.income : state.configCats.expense; return raw ? raw.split(',').map(c => c.trim()) : []; });
@@ -1889,17 +1879,18 @@
           return count > 8 ? (count * 50) + 'px' : '100%';
         });
         const hasMoreItems = computed(() => state.displayLimit < filteredItems.value.length);
-        const totalIncome = computed(() => filteredItems.value.filter(i => i.type === '收入').reduce((a, b) => a + b.amount, 0));
-        const totalExpense = computed(() => filteredItems.value.filter(i => i.type === '支出').reduce((a, b) => a + b.amount, 0));
+        const totalIncome = computed(() => { filteredItems.value; return state._filteredIncome || 0; });
+        const totalExpense = computed(() => { filteredItems.value; return state._filteredExpense || 0; });
         const totalBalance = computed(() => totalIncome.value - totalExpense.value);
-        const curExp = computed(() => { const m = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'); return items.value.filter(i => i.date.startsWith(m) && i.type === '支出').reduce((a, b) => a + b.amount, 0); });
+        const currentMonthStr = ref(new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
+        const curExp = computed(() => items.value.filter(i => i.date.startsWith(currentMonthStr.value) && i.type === '支出').reduce((a, b) => a + b.amount, 0));
         const budgetPercent = computed(() => state.monthlyBudget > 0 ? (curExp.value / state.monthlyBudget) * 100 : 0);
         const budgetColor = computed(() => budgetPercent.value < 50 ? 'var(--income)' : (budgetPercent.value < 80 ? '#E0BE89' : 'var(--expense)'));
 
         watch(() => state.filter, (n) => { if (n.month === 'custom') { openModal('range'); return; } if (typeof n.month === 'string' && n.month !== 'custom' && state.filter.customRange) { state.filter.customRange = null; state.filter.customRangeText = ''; } state.displayLimit = 30; state.selectedRows = []; renderCharts(); }, { deep: true });
         watch(() => state.displayLimit, () => { state.selectedRows = []; });
-        watch(() => state.activeData, () => { renderCharts(); }, { deep: true });
-        watch(() => state.archiveData, () => { renderCharts(); }, { deep: true });
+        watch(() => state.activeData, () => { renderCharts(); });
+        watch(() => state.archiveData, () => { renderCharts(); });
         watch(() => state.appTitle, (n) => { document.title = n; });
         watch(() => state.batchMode, (n) => { if (!n) state.selectedRows = []; });
 
@@ -1923,7 +1914,11 @@
             if (res.sheetUrl) state.sheetUrl = res.sheetUrl; nextTick(() => renderCharts());
           }, () => { state.isProcessing = false; const c = localStorage.getItem('ahmo_cache'); if (c) state.activeData = JSON.parse(c); if (!state.gasUrl) state.showSettings = true; renderCharts(); });
         });
-        onBeforeUnmount(() => { window.removeEventListener('scroll', infiniteScroll); });
+        onBeforeUnmount(() => {
+          window.removeEventListener('scroll', infiniteScroll);
+          if (state._debounceTimer) clearTimeout(state._debounceTimer);
+          if (state._chartDebounce) clearTimeout(state._chartDebounce);
+        });
 
         return {
           ...toRefs(state), modalTitle, modalCatOptions, allData, items, filteredItems, displayItems, isAllSelected,
