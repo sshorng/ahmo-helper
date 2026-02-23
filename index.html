@@ -1632,7 +1632,10 @@
               try {
                 const url = new URL(state.gasUrl);
                 const isGet = ['getData', 'getCategoryConfig', 'fetchActiveData', 'fetchArchiveData'].includes(method);
-                if (isGet) url.searchParams.append('action', method);
+                if (isGet) {
+                  url.searchParams.append('action', method);
+                  url.searchParams.append('_t', Date.now()); // 防止瀏覽器快取 (Cache Buster)
+                }
                 const options = { method: isGet ? 'GET' : 'POST', redirect: 'follow', mode: 'cors' };
                 if (!isGet) {
                   options.body = JSON.stringify({ action: method, params: params || [] });
