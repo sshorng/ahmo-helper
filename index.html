@@ -1851,9 +1851,8 @@
 
         const allData = computed(() => state.useArchive ? [...state.activeData, ...state.archiveData] : state.activeData);
         // 優化：預處理資料，避免 computed 每次 map
-        const items = ref([]);
-        const preprocessData = () => {
-          items.value = (allData.value || []).map(r => ({
+        const items = computed(() => {
+          return (allData.value || []).map(r => ({
             date: r[0],
             type: r[1],
             category: r[2],
@@ -1863,8 +1862,8 @@
             row: r[6],
             sheet: r[7]
           }));
-        };
-        watch(allData, preprocessData, { immediate: true });
+        });
+
         const filteredItems = computed(() => {
           let inc = 0, exp = 0;
           let res = items.value.filter(i => {
@@ -1947,7 +1946,7 @@
           totalIncome, totalExpense, totalBalance, currentMonthExpense: curExp, budgetPercent, budgetColor,
           showToast, setTheme, apiCall, initGasUrl, saveFullConfig, initSystem, addQuickReply, clearSettings,
           addRecurItem, removeRecurItem, generateShareLink, copyToClipboard, toggleArchive, refreshActiveData,
-          resetFilters, formatMoney, highlight: highlightText, sortBy, getSortIcon, getIcon, openModal, submitForm,
+          resetFilters, formatMoney, highlight: highlightText, sortBy, getSortIcon, getIcon, openModal, submitForm, themes,
           deleteRow, isSelected, toggleSelectAll, infiniteScroll, renderCharts, openSheet
         };
       }
