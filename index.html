@@ -1765,14 +1765,38 @@
             }
             state.isProcessing = true;
             const data = [state.form.date, state.form.type, state.form.category, state.form.item, state.form.amount, state.form.note];
-            const done = () => { refreshActiveData(); state.showModal = false; showToast('成功'); };
-            if (state.modalMode === 'add') apiCall('addData', [data], done, () => state.isProcessing = false);
-            else apiCall('updateData', [state.form.row, data, state.form.sheet], done, () => state.isProcessing = false);
+            const done = (res) => {
+              // 伺服器同步成功後再次校準，確保序號(row)正確
+              if (Array.isArray(res)) state.activeData = res;
+              else refreshActiveData(true);
+              state.showModal = false;
+              showToast('更新成功');
+            };
+
+            if (state.modalMode === 'add') {
+              // 本地先行渲染 (Optimistic UI)
+              const newItem = [state.form.date, state.form.type, state.form.category, state.form.item, Number(state.form.amount), state.form.note, 9999, SHEETS.MAIN];
+              state.activeData.unshift(newItem);
+              apiCall('addData', [data], done, () => { state.isProcessing = false; refreshActiveData(true); });
+            } else {
+              const idx = state.activeData.findIndex(r => r[6] == state.form.row && r[7] == state.form.sheet);
+              if (idx !== -1) {
+                const updatedRow = [...data, state.form.row, state.form.sheet];
+                state.activeData.splice(idx, 1, updatedRow);
+              }
+              apiCall('updateData', [state.form.row, data, state.form.sheet], done, () => { state.isProcessing = false; refreshActiveData(true); });
+            }
           };
           const deleteRow = async (item) => {
             if (await sysConfirm('確定刪除此筆帳目？', '刪除確認', true)) {
               state.isProcessing = true;
-              apiCall('deleteData', [item.row, item.sheet], () => { refreshActiveData(); showToast('已刪除'); state.selectedRows = state.selectedRows.filter(r => r.row !== item.row || r.sheet !== item.sheet); }, () => state.isProcessing = false);
+              // 本地刪除 (Optimistic UI)
+              state.activeData = state.activeData.filter(r => !(r[6] == item.row && r[7] == item.sheet));
+              apiCall('deleteData', [item.row, item.sheet], () => {
+                showToast('已刪除');
+                state.isProcessing = false;
+                state.selectedRows = state.selectedRows.filter(r => r.row !== item.row || r.sheet !== item.sheet);
+              }, () => { state.isProcessing = false; refreshActiveData(true); });
             }
           };
           const batchDelete = async () => {
