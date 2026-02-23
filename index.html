@@ -1789,8 +1789,12 @@
             if (!bg) state.isProcessing = true;
             apiCall('fetchActiveData', null, res => {
               if (res && res.error) { if (!bg) showToast(res.error, 'error'); state.isProcessing = false; return; }
-              state.activeData = res; state.isProcessing = false; localStorage.setItem('ahmo_cache', JSON.stringify(res));
-              renderCharts(); if (!bg) showToast('資料已同步');
+              state.activeData = res;
+              preprocessData(); // 手動觸發預處理，確保 UI 即時更新
+              state.isProcessing = false;
+              localStorage.setItem('ahmo_cache', JSON.stringify(res));
+              renderCharts();
+              if (!bg) showToast('資料已同步');
             }, () => state.isProcessing = false);
           };
           const toggleArchive = () => {
@@ -1843,7 +1847,21 @@
 
 
         const allData = computed(() => state.useArchive ? [...state.activeData, ...state.archiveData] : state.activeData);
-        const items = computed(() => (allData.value || []).map(r => ({ date: r[0], type: r[1], category: r[2], item: r[3], amount: Number(String(r[4] || 0).replace(/,/g, '')), note: r[5], row: r[6], sheet: r[7] })));
+        // 優化：預處理資料，避免 computed 每次 map
+        const items = ref([]);
+        const preprocessData = () => {
+          items.value = (allData.value || []).map(r => ({
+            date: r[0],
+            type: r[1],
+            category: r[2],
+            item: r[3],
+            amount: Number(String(r[4] || 0).replace(/,/g, '')),
+            note: r[5],
+            row: r[6],
+            sheet: r[7]
+          }));
+        };
+        watch(allData, preprocessData, { immediate: true });
         const filteredItems = computed(() => {
           let inc = 0, exp = 0;
           let res = items.value.filter(i => {
