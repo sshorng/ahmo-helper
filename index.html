@@ -1792,7 +1792,8 @@
               state.isProcessing = true;
               // 本地刪除 (Optimistic UI)
               state.activeData = state.activeData.filter(r => !(r[6] == item.row && r[7] == item.sheet));
-              apiCall('deleteData', [item.row, item.sheet], () => {
+              apiCall('deleteData', [item.row, item.sheet], (res) => {
+                if (Array.isArray(res)) state.activeData = res;
                 showToast('已刪除');
                 state.isProcessing = false;
                 state.selectedRows = state.selectedRows.filter(r => r.row !== item.row || r.sheet !== item.sheet);
@@ -1802,14 +1803,26 @@
           const batchDelete = async () => {
             if (state.selectedRows.length === 0) return;
             if (await sysConfirm(`確定批次刪除 ${state.selectedRows.length} 筆項目？`, '批次刪除', true)) {
-              state.isProcessing = true; apiCall('batchDeleteData', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet }))], () => { refreshActiveData(); state.selectedRows = []; showToast('已批次刪除'); }, () => state.isProcessing = false);
+              state.isProcessing = true;
+              apiCall('batchDeleteData', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet }))], (res) => {
+                if (Array.isArray(res)) state.activeData = res;
+                else refreshActiveData(true);
+                state.selectedRows = [];
+                showToast('已批次刪除');
+              }, () => state.isProcessing = false);
             }
           };
           const batchChangeCat = async () => {
             if (state.selectedRows.length === 0) return;
             const newCat = await sysPrompt("請輸入新的分類名稱：", "批次修改分類");
             if (newCat && newCat.trim()) {
-              state.isProcessing = true; apiCall('batchUpdateCategory', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet })), newCat.trim()], () => { refreshActiveData(); state.selectedRows = []; showToast('已批次更新'); }, () => state.isProcessing = false);
+              state.isProcessing = true;
+              apiCall('batchUpdateCategory', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet })), newCat.trim()], (res) => {
+                if (Array.isArray(res)) state.activeData = res;
+                else refreshActiveData(true);
+                state.selectedRows = [];
+                showToast('已批次更新');
+              }, () => state.isProcessing = false);
             }
           };
           const refreshActiveData = (bg = false) => {
@@ -1817,7 +1830,6 @@
             apiCall('fetchActiveData', null, res => {
               if (res && res.error) { if (!bg) showToast(res.error, 'error'); state.isProcessing = false; return; }
               state.activeData = res;
-              preprocessData(); // 手動觸發預處理，確保 UI 即時更新
               state.isProcessing = false;
               localStorage.setItem('ahmo_cache', JSON.stringify(res));
               renderCharts();
