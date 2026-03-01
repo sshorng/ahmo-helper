@@ -1769,6 +1769,7 @@
               // 伺服器同步成功後再次校準，確保序號(row)正確
               if (Array.isArray(res)) state.activeData = res;
               else refreshActiveData(true);
+              state.isProcessing = false;
               state.showModal = false;
               showToast('更新成功');
             };
@@ -1807,6 +1808,7 @@
               apiCall('batchDeleteData', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet }))], (res) => {
                 if (Array.isArray(res)) state.activeData = res;
                 else refreshActiveData(true);
+                state.isProcessing = false;
                 state.selectedRows = [];
                 showToast('已批次刪除');
               }, () => state.isProcessing = false);
@@ -1820,6 +1822,7 @@
               apiCall('batchUpdateCategory', [state.selectedRows.map(r => ({ row: r.row, sheet: r.sheet })), newCat.trim()], (res) => {
                 if (Array.isArray(res)) state.activeData = res;
                 else refreshActiveData(true);
+                state.isProcessing = false;
                 state.selectedRows = [];
                 showToast('已批次更新');
               }, () => state.isProcessing = false);
