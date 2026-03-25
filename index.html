@@ -1552,6 +1552,14 @@
     const initialAppTitle = typeof appTitle !== 'undefined' ? appTitle : '阿墨小帳房';
     document.title = initialAppTitle; // 初始化標題
 
+    // 補足前端缺失的常數定義，修復 SHEETS is not defined 錯誤
+    const SHEETS = {
+      MAIN: "記帳流水帳",
+      CONFIG: "系統設定",
+      RECURRING: "定期收支",
+      ARCHIVE: "資料封存"
+    };
+
     const { createApp, ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick, toRefs } = Vue;
 
     createApp({
@@ -1753,6 +1761,7 @@
             state.showModal = true;
           };
           const submitForm = () => {
+            if (state.isProcessing) return;
             if (state.modalMode === 'range') {
               if (state.rangeForm.start > state.rangeForm.end) { showToast('日期區間錯誤', 'error'); return; }
               state.filter.customRange = { start: state.rangeForm.start, end: state.rangeForm.end }; state.filter.customRangeText = `${state.rangeForm.start.slice(5)}~${state.rangeForm.end.slice(5)}`;
@@ -1858,6 +1867,7 @@
         const isSelected = (item) => selectedSet.value.has(item.row + '|' + item.sheet);
         const toggleSelectAll = () => { state.selectedRows = isAllSelected.value ? [] : [...displayItems.value]; };
         const saveFullConfig = () => {
+          if (state.isProcessing) return;
           if (!state.tempGasUrl.trim()) { showToast('GAS 網址不可為空', 'error'); return; }
           state.isProcessing = true; localStorage.setItem('ahmo_gas_url', state.tempGasUrl.trim()); state.gasUrl = state.tempGasUrl.trim();
           state.fullConfig.LINE_QUICK_REPLY = state.quickReplyList.filter(i => i.label.trim()).map(i => `${i.label.trim()}:${(i.text || i.label).trim()}`).join('|');
