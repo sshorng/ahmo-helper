@@ -1366,16 +1366,10 @@
                     <i class="fas fa-magic"></i> 初始化
                   </button>
                 </div>
-              </div>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+              </div><br />
                 <div class="setting-group">
                   <label class="setting-label">Gemini API Key</label>
-                  <input type="password" v-model="fullConfig.GEMINI_API_KEY" placeholder="Gemini 金鑰">
-                </div>
-                <div class="setting-group">
-                  <label class="setting-label">LINE Push Token</label>
-                  <input type="password" v-model="fullConfig.LINE_ACCESS_TOKEN" placeholder="Line Access Token">
-                </div>
+                  <input type="password" v-model="fullConfig.GEMINI_API_KEY" placeholder="Gemini 金鑰" >
               </div>
             </div>
 
@@ -1427,8 +1421,10 @@
             <div v-if="showAdvModel" class="setting-card" style="margin-top:10px; padding:15px;">
               <label class="setting-label">Gemini 模型 ID</label>
               <input type="text" v-model="fullConfig.GEMINI_MODEL" placeholder="例如: gemini-2.0-flash"
-                style="border-radius:12px;">
-            </div>
+                style="border-radius:12px;"><br />
+                  <label class="setting-label">LINE Push Token</label>
+                  <input type="password" v-model="fullConfig.LINE_ACCESS_TOKEN" placeholder="Line Access Token">
+                </div>
           </div>
 
           <!-- 個人偏好 Tab -->
